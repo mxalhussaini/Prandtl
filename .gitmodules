@@ -4,3 +4,6 @@
 [submodule "glvis"]
 	path = glvis
 	url = git@github.com:GLVis/glvis.git
+[submodule "libs/hypre"]
+	path = libs/hypre
+	url = git@github.com:hypre-space/hypre.git
