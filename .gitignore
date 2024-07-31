@@ -77,3 +77,5 @@ out/build/
 libs/metis-5.1.0/
 
 [Bb][Uu][Ii][Ll][Dd]/
+
+.vscode/
