@@ -12,15 +12,20 @@ project(Prandtl)
 
 add_executable(${PROJECT_NAME} main.cpp)
 
+target_sources(${PROJECT_NAME} PRIVATE src/Operators/DGOperator.cpp)
+
 # add_subdirectory(${CMAKE_SOURCE_DIR}/libs/mfem-4.7)
 # add_subdirectory(${CMAKE_SOURCE_DIR}/libs/hypre-2.31.0/src)
 # add_subdirectory(${CMAKE_SOURCE_DIR}/libs/metis-5.1.0)
+
+
 
 
 target_include_directories(${PROJECT_NAME}
     PUBLIC ${CMAKE_SOURCE_DIR}/libs/mfem
     PUBLIC ${CMAKE_SOURCE_DIR}/libs/hypre/src/hypre/include
     PUBLIC ${CMAKE_SOURCE_DIR}/libs/metis-5.1.0/include
+    PUBLIC ${CMAKE_SOURCE_DIR}/src/Operators
     )
 
 target_link_directories(${PROJECT_NAME}
