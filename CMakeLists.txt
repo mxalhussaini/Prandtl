@@ -18,14 +18,14 @@ add_executable(${PROJECT_NAME} main.cpp)
 
 
 target_include_directories(${PROJECT_NAME}
-    PUBLIC ${CMAKE_SOURCE_DIR}/libs/mfem-4.7
-    PUBLIC ${CMAKE_SOURCE_DIR}/libs/hypre-2.31.0/src/hypre/include
+    PUBLIC ${CMAKE_SOURCE_DIR}/libs/mfem
+    PUBLIC ${CMAKE_SOURCE_DIR}/libs/hypre/src/hypre/include
     PUBLIC ${CMAKE_SOURCE_DIR}/libs/metis-5.1.0/include
     )
 
 target_link_directories(${PROJECT_NAME}
-    PUBLIC ${CMAKE_SOURCE_DIR}/libs/mfem-4.7
-    PUBLIC ${CMAKE_SOURCE_DIR}/libs/hypre-2.31.0/src/lib
+    PUBLIC ${CMAKE_SOURCE_DIR}/libs/mfem
+    PUBLIC ${CMAKE_SOURCE_DIR}/libs/hypre/src/lib
     PUBLIC ${CMAKE_SOURCE_DIR}/libs/metis-5.1.0/lib
     )
 
