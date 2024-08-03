@@ -1,6 +1,7 @@
 #pragma once
 
 #include "mfem.hpp"
+#include "Filter.hpp"
 
 namespace Prandtl
 {
@@ -18,6 +19,7 @@ private:
    std::unique_ptr<HyperbolicFormIntegrator> formIntegrator;
    // Base Nonlinear Form
    std::unique_ptr<NonlinearForm> nonlinearForm;
+   std::unique_ptr<Filter> filter;
    // element-wise inverse mass matrix
    std::vector<DenseMatrix> invmass; // local scalar inverse mass
    std::vector<DenseMatrix> weakdiv; // local weak divergence (trial space ByDim)
@@ -32,7 +34,7 @@ private:
    void ComputeWeakDivergence();
 public:
    /**
-    * @brief Construct a new DGHyperbolicConservationLaws object
+    * @brief Construct a new DGOperator object
     *
     * @param vfes_ vector finite element space. Only tested for DG [Pₚ]ⁿ
     * @param formIntegrator_ integrator (F(u,x), grad v)
