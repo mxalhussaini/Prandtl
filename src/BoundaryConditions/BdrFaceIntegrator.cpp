@@ -4,13 +4,10 @@
 namespace Prandtl
 {
 
-BdrFaceIntegrator::BdrFaceIntegrator(
-   const RiemannSolver &rsolver,
-   const int IntOrderOffset)
-   : NonlinearFormIntegrator(),
+BdrFaceIntegrator::BdrFaceIntegrator(const RiemannSolver &rsolver, const IntegrationRule *bdr_face_ir)
+   : NonlinearFormIntegrator(bdr_face_ir),
      rsolver(rsolver),
      fluxFunction(rsolver.GetFluxFunction()),
-     IntOrderOffset(IntOrderOffset),
      num_equations(fluxFunction.num_equations)
 {
 #ifndef MFEM_THREAD_SAFE
@@ -19,7 +16,6 @@ BdrFaceIntegrator::BdrFaceIntegrator(
    fluxN.SetSize(num_equations);
    nor.SetSize(fluxFunction.dim);
    phys_ip.SetSize(fluxFunction.dim);
-   // unit_nor.SetSize(fluxFunction.dim);
 #endif
 }
 
@@ -38,9 +34,7 @@ void BdrFaceIntegrator::AssembleFaceVector(
    // shape function value at an integration point - first elem
    Vector shape1(dof1);
    // normal vector (usually not a unit vector)
-   Vector nor(el1.GetDim());
-   // unit normal vector
-   // Vector unit_nor(el1.GetDim());  
+   Vector nor(el1.GetDim());  
    // integration point in physical space
    Vector phys_ip(el1.GetDim());  
    // state value at an integration point - first elem
@@ -63,11 +57,7 @@ void BdrFaceIntegrator::AssembleFaceVector(
    // Obtain integration rule. If integration is rule is given, then use it.
    // Otherwise, get (2*p + IntOrderOffset) order integration rule
    const IntegrationRule *ir = IntRule;
-   if (!ir)
-   {
-      const int order = 2*std::max(el1.GetOrder(), el2.GetOrder()) + IntOrderOffset;
-      ir = &IntRules.Get(Tr.GetGeometryType(), order);
-   }
+   
    // loop over integration points
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
@@ -93,14 +83,12 @@ void BdrFaceIntegrator::AssembleFaceVector(
          CalcOrtho(Tr.Jacobian(), nor);
       }
       
-      // unit_nor = nor;
-      // Normalize(unit_nor);
-      // Tr.Transform(ip, phys_ip);
-      ComputeOuterState(state1, state2, Tr, ip);
+      const real_t speed = ComputeBdrFaceFlux(state1, state2, fluxN, Tr, ip);
+      // ComputeOuterState(state1, state2, Tr, ip);
 
       // Compute F(u+, x) and F(u-, x) with maximum characteristic speed
       // Compute hat(F) using evaluated quantities
-      const real_t speed = rsolver.Eval(state1, state2, nor, Tr, fluxN);
+      // const real_t speed = rsolver.Eval(state1, state2, nor, Tr, fluxN);
 
       // Update the global max char speed
       max_char_speed = std::max(speed, max_char_speed);
@@ -108,6 +96,16 @@ void BdrFaceIntegrator::AssembleFaceVector(
       // pre-multiply integration weight to flux
       AddMult_a_VWt(-ip.weight, shape1, fluxN, elvect1_mat);
    }
+}
+
+real_t BdrFaceIntegrator::ComputeBdrFaceFlux(const Vector &state1, Vector &state2, Vector &fluxN, FaceElementTransformations &Tr, const IntegrationPoint &ip)
+{
+   ComputeOuterState(state1, state2, Tr, ip);
+
+    // Compute F(u+, x) and F(u-, x) with maximum characteristic speed
+    // Compute hat(F) using evaluated quantities
+   const real_t speed = rsolver.Eval(state1, state2, nor, Tr, fluxN);
+   return speed;
 }
 
 }

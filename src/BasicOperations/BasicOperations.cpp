@@ -105,39 +105,43 @@ void RotateState(Vector &state, const Vector &nor)
     Vector tan1(nor.Size());
     Vector rhoV(state.GetData() + 1, nor.Size());
 
-    if (nor.Size() == 2)
+    tan1 = Normal(nor);
+    real_t rho_u = rhoV * nor;
+    real_t rho_v = rhoV * tan1;
+
+    if (nor.Size() == 3)
     {
-        tan1 = Normal2D(nor);
-        real_t rho_u = rhoV * nor;
-        real_t rho_v = rhoV * tan1; 
-        rhoV(0) = rho_u;
-        rhoV(1) = rho_v;
+        Vector tan2 = Cross(nor, tan1);
+        rhoV(2) = rhoV * tan2;
     }
-    else
-    {
-        Vector tan2(nor.Size());
-        Vector vec(3);
-        if (std::abs(nor(0)) > 1e-12 || std::abs(nor(1)) > 1e-12)
-        {
-            vec(2) = 1.0;
-        }
-        else
-        {
-            vec(0) = 1.0;
-        }
-        tan1 = Cross(nor, vec);
-        Normalize(tan1);
-        tan2 = Cross(nor, tan1);
-        Normalize(tan2);
-        real_t rho_u = rhoV * nor;
-        real_t rho_v = rhoV * tan1;
-        real_t rho_w = rhoV * tan2;
-        rhoV(0) = rho_u;
-        rhoV(1) = rho_v;
-        rhoV(2) = rho_w;
-    }
+
+    rhoV(0) = rho_u;
+    rhoV(1) = rho_v;
 }
 
+void RotateBack(Vector &state, const Vector &nor)
+{
+    MFEM_ASSERT(nor.Size() > 1, "Rotate only in 2D or 3D");
+    MFEM_ASSERT(nor.Size() < 4, "Rotate only in 2D or 3D");
+
+    Vector tan1(nor.Size());
+    Vector rhoV(state.GetData() + 1, nor.Size());
+
+    tan1 = Normal(nor);
+    real_t rho_u = rhoV(0) * nor(0) + rhoV(1) * tan1(0);
+    real_t rho_v = rhoV(0) * nor(1) + rhoV(1) * tan1(1);
+
+    if (nor.Size() == 3)
+    {
+        Vector tan2 = Cross(nor, tan1);
+        rho_u += rhoV(2) * tan2(0);
+        rho_v += rhoV(2) * tan2(1);
+        rhoV(2) = rhoV(0) * nor(2) + rhoV(1) * tan1(2) + rhoV(2) * tan2(2);
+    }
+
+    rhoV(0) = rho_u;
+    rhoV(1) = rho_v;
+}
 
 
 Vector ComputeRoeAverage(const Vector &state1, const Vector &state2, const real_t gamma)

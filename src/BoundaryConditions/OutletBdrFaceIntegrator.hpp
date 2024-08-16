@@ -10,10 +10,9 @@ using namespace mfem;
 
 class OutletBdrFaceIntegrator : public BdrFaceIntegrator
 {
-private:
-    virtual void ComputeOuterState(const Vector &state1, Vector &state2, FaceElementTransformations &Tr, const IntegrationPoint &ip) override;
 public:
-    OutletBdrFaceIntegrator(const RiemannSolver &rsolver, const int IntOrderOffset=0);
+    OutletBdrFaceIntegrator(const RiemannSolver &rsolver, const IntegrationRule *bdr_face_ir);
+    virtual void ComputeOuterState(const Vector &state1, Vector &state2, FaceElementTransformations &Tr, const IntegrationPoint &ip) override;
 };
 
 

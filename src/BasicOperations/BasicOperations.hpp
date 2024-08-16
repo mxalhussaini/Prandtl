@@ -1,7 +1,7 @@
 #pragma once
 
 #include "mfem.hpp"
-#define HYPERBOLIC
+// #define HYPERBOLIC
 
 namespace Prandtl
 {
@@ -34,12 +34,20 @@ namespace Prandtl
         return cross;
     }
 
-    inline Vector Normal2D(const Vector &vec)
+    inline Vector Normal(const Vector &vec)
     {
-        MFEM_ASSERT(vec.Size() == 2, "Apply only to 2D vectors");
-        Vector nor(2);
-        nor(0) = -vec(1);
-        nor(1) = vec(0);
+        MFEM_ASSERT(vec.Size() == 2 || vec.Size() == 3, "Apply only to 2D/3D vectors");
+        
+        Vector nor(vec.Size());
+
+        nor(0) = vec.Size() == 2? -vec(1) :
+            (std::abs(vec(0)) > 1e-10 ? -(vec(1) / vec(0)) / std::sqrt(1.0 + std::pow(vec(1) / vec(0), 2)) : -1.0);
+        nor(1) = vec.Size() == 2? vec(0) : 
+            (std::abs(vec(0)) > 1e-10 ? 1.0 / std::sqrt(1.0 + std::pow(vec(1) / vec(0), 2)) : 0.0);
+        if (vec.Size() == 3)
+        {
+            nor(2) = 0.0;
+        }
         return nor;
     }
 

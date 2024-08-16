@@ -17,22 +17,12 @@ ModalBasis::ModalBasis(DG_FECollection &fec_, Geometry::Type &gtype_,
    ComputeVDM(solpts);
 }
 
-Vector ModalBasis::GetModes()
-{
-  return umc;
-}
-
 Array2D<int> ModalBasis::GetPolyDegs()
 {
   return ubdegs;
 }
 
-void ModalBasis::SetModes(Vector& modes)
-{
-  umc = modes;
-}
-
-DenseMatrix ModalBasis::GetVandermonde()
+const DenseMatrix& ModalBasis::GetVandermonde()
 {
   return V;
 }
@@ -89,12 +79,11 @@ void ModalBasis::ComputeUBDegs(Geometry::Type &gtype)
 void ModalBasis::ComputeVDM(IntegrationRule &solpts)
 {
    V = DenseMatrix(npts);
-
+   Vector x(dim);
    // Loop through solution nodes
    for (int i = 0; i < npts; i++)
    {
       // Compute nodal location in reference space
-      Vector x(dim);
       solpts.IntPoint(i).Get(x, dim);
 
       // Compute L_k(x_i)*L_k(y_i)*L_k(z_i) for each modal basis function k corresponding to the
@@ -116,29 +105,39 @@ void ModalBasis::ComputeVDM(IntegrationRule &solpts)
    V_inv.Invert();
 }
 
-void ModalBasis::SetSolution(Vector &u_elem)
+void ModalBasis::ComputeModes(const Vector &nodes)
 {
-   MFEM_ASSERT(u_elem.Size() == npts,
+   MFEM_ASSERT(nodes.Size() == npts,
                "Element-wise solution vector must be of same size as the modal basis.")
 
-   V_inv.Mult(u_elem, umc);
+   V_inv.Mult(nodes, umc);
 }
 
-void ModalBasis::SetNodes(Vector &u_elem)
+void ModalBasis::SetModes(const Vector& modes)
 {
-   MFEM_ASSERT(u_elem.Size() == npts,
+  umc = modes;
+}
+
+void ModalBasis::GetModes(Vector &modes)
+{
+  modes = umc;
+}
+
+void ModalBasis::ComputeNodes(Vector &nodes)
+{
+   MFEM_ASSERT(nodes.Size() == npts,
                "Element-wise solution vector must be of same size as the modal basis.")
 
-   V.Mult(umc, u_elem);  
+   V.Mult(umc, nodes);  
 }
 
-void ModalBasis::SetNodes(const Vector& modes, Vector& nodes)
+void ModalBasis::ComputeNodes(const Vector& modes, Vector& nodes)
 {
   V.Mult(modes, nodes);
 }
 
 // Evalutes solution at arbitrary point x using modal basis
-double ModalBasis::Eval(Vector &x)
+real_t ModalBasis::Eval(Vector &x)
 {
    MFEM_ASSERT(x.Size() == dim,
                "Modal basis can only be evaluated at one location at a time.")
@@ -170,19 +169,28 @@ double ModalBasis::Eval(Vector &x)
    return ux;
 }
 
-void ModalBasis::Eval(const Vector& x, Vector& vec)
+DenseMatrix ModalBasis::ComputeVDM(const IntegrationRule *ir)
 {
-  vec = 0.0;
-  for (int j = 0; j < dim; j++)
-  {
-    Vector L(order+1);
-    Poly_1D::CalcLegendre(order, x(j), L);
-    for (int k = 0; k < npts; k++)
-    {
-      double v = L(ubdegs(k, j));
-      vec(k) = (j == 0) ? v : vec(k)*v;
-    }
-  }
+   Vector x(dim);
+   DenseMatrix VDM(ir->GetNPoints(), npts);
+   int indx = 0;
+   for (const IntegrationPoint *ip = ir->begin(); ip != ir->end(); ++ip, ++indx)
+   {
+      ip->Get(x, dim);
+      for (int j = 0; j < dim; j++)
+      {
+         Vector L(order+1);
+         Poly_1D::CalcLegendre(order, x(j), L);
+
+         for (int k = 0; k < npts; k++)
+         {
+            double v = L(ubdegs(k, j));
+
+            VDM(indx,k) = (j == 0) ? v : VDM(indx,k) * v;
+         }
+      }
+   }
+   return VDM;
 }
 
 // Evalutes solution gradient at arbitrary point x using modal basis

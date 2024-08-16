@@ -4,9 +4,8 @@ namespace Prandtl
 {
 
 OutletBdrFaceIntegrator::OutletBdrFaceIntegrator(
-    const RiemannSolver &rsolver,
-    const int IntOrderOffset=0)
-    : BdrFaceIntegrator(rsolver, IntOrderOffset) {}
+    const RiemannSolver &rsolver, const IntegrationRule *bdr_face_ir)
+    : BdrFaceIntegrator(rsolver, bdr_face_ir) {}
 
 void OutletBdrFaceIntegrator::ComputeOuterState(
     const Vector &state1,

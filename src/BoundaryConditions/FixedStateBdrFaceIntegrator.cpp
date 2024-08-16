@@ -3,11 +3,9 @@
 namespace Prandtl
 {
 
-FixedStateBdrFaceIntegrator::FixedStateBdrFaceIntegrator(
-    const RiemannSolver &rsolver,
-    const Vector &fixed_state_,
-    const int IntOrderOffset=0)
-    : BdrFaceIntegrator(rsolver, IntOrderOffset),
+FixedStateBdrFaceIntegrator::FixedStateBdrFaceIntegrator(const RiemannSolver &rsolver, const IntegrationRule *bdr_face_ir,
+    const Vector &fixed_state_)
+    : BdrFaceIntegrator(rsolver, bdr_face_ir),
       fixed_state(fixed_state_) {}
 
 void FixedStateBdrFaceIntegrator::ComputeOuterState(

@@ -1,33 +1,30 @@
 #include "DGOperator.hpp"
 
-using namespace Prandtl;
+namespace Prandtl
+{
 
 // Implementation of class DGOperator
 DGOperator::DGOperator(
-   ParFiniteElementSpace &vfes_, ParMesh &mesh_,
-   std::unique_ptr<HyperbolicFormIntegrator> formIntegrator_,
+   std::shared_ptr<ParFiniteElementSpace> vfes_,
+   std::shared_ptr<ParFiniteElementSpace> fes0_,
+   std::shared_ptr<ParMesh> mesh_,
+   std::shared_ptr<ParGridFunction> sol_,
+   std::unique_ptr<DGFormIntegrator> formIntegrator_,
+   std::unique_ptr<Filter> filter_,
    bool preassembleWeakDivergence)
-   : TimeDependentOperator(vfes_.GetTrueVSize()),
-     num_equations(formIntegrator_->num_equations),
-     dim(vfes_.GetMesh()->SpaceDimension()),
-     vfes(vfes_), mesh(mesh_),
-     formIntegrator(std::move(formIntegrator_)),
-     z(vfes_.GetTrueVSize())
+   :  TimeDependentOperator(vfes_->GetTrueVSize()),
+      vfes(vfes_), fes0(fes0_), mesh(mesh_), sol(sol_),
+      formIntegrator(std::move(formIntegrator_)), filter(std::move(filter_)),
+      num_equations(formIntegrator_->num_equations),
+      dim(mesh_->SpaceDimension()),
+      z(vfes_->GetTrueVSize())
 {
    // Standard local assembly and inversion for energy mass matrices.
    ComputeInvMass();
 #ifndef MFEM_USE_MPI
-   nonlinearForm.reset(new NonlinearForm(&vfes));
+   nonlinearForm.reset(new NonlinearForm(vfes));
 #else
-   ParFiniteElementSpace *pvfes = dynamic_cast<ParFiniteElementSpace *>(&vfes);
-   if (pvfes)
-   {
-      nonlinearForm.reset(new ParNonlinearForm(pvfes));
-   }
-   else
-   {
-      nonlinearForm.reset(new NonlinearForm(&vfes));
-   }
+   nonlinearForm.reset(new ParNonlinearForm(vfes.get()));
 #endif
    if (preassembleWeakDivergence)
    {
@@ -46,13 +43,15 @@ void DGOperator::ComputeWeakDivergence()
    TransposeIntegrator weak_div(new GradientIntegrator());
    DenseMatrix weakdiv_bynodes;
 
-   weakdiv.resize(vfes.GetNE());
-   for (int i=0; i<vfes.GetNE(); i++)
+   weak_div.SetIntRule(formIntegrator->GetVolumeIr());
+
+   weakdiv.resize(vfes->GetNE());
+   for (int i=0; i<vfes->GetNE(); i++)
    {
-      int dof = vfes.GetFE(i)->GetDof();
+      int dof = vfes->GetFE(i)->GetDof();
       weakdiv_bynodes.SetSize(dof, dof*dim);
-      weak_div.AssembleElementMatrix2(*vfes.GetFE(i), *vfes.GetFE(i),
-                                      *vfes.GetElementTransformation(i),
+      weak_div.AssembleElementMatrix2(*vfes->GetFE(i), *vfes->GetFE(i),
+                                      *vfes->GetElementTransformation(i),
                                       weakdiv_bynodes);
       weakdiv[i].SetSize(dof, dof*dim);
       // Reorder so that trial space is ByDim.
@@ -72,13 +71,15 @@ void DGOperator::ComputeInvMass()
 {
    InverseIntegrator inv_mass(new MassIntegrator());
 
-   invmass.resize(vfes.GetNE());
-   for (int i=0; i<vfes.GetNE(); i++)
+   inv_mass.SetIntRule(formIntegrator->GetVolumeIr());
+
+   invmass.resize(vfes->GetNE());
+   for (int i=0; i<vfes->GetNE(); i++)
    {
-      int dof = vfes.GetFE(i)->GetDof();
+      int dof = vfes->GetFE(i)->GetDof();
       invmass[i].SetSize(dof);
-      inv_mass.AssembleElementMatrix(*vfes.GetFE(i),
-                                     *vfes.GetElementTransformation(i),
+      inv_mass.AssembleElementMatrix(*vfes->GetFE(i),
+                                     *vfes->GetElementTransformation(i),
                                      invmass[i]);
    }
 }
@@ -92,6 +93,7 @@ void DGOperator::Mult(const Vector &x, Vector &y) const
    //         z = - <F̂(u_h,n), [[v]]>_e
    //    If weak-divergence is not preassembled, we also have weak-divergence
    //         z = - <F̂(u_h,n), [[v]]>_e + (F(u_h), ∇v)
+
    nonlinearForm->Mult(x, z);
    if (!weakdiv.empty()) // if weak divergence is pre-assembled
    {
@@ -105,11 +107,11 @@ void DGOperator::Mult(const Vector &x, Vector &y) const
       const FluxFunction &fluxFunction = formIntegrator->GetFluxFunction();
       Array<int> vdofs;
       Vector xval, zval;
-      for (int i=0; i<vfes.GetNE(); i++)
+      for (int i=0; i<vfes->GetNE(); i++)
       {
-         ElementTransformation* Tr = vfes.GetElementTransformation(i);
-         int dof = vfes.GetFE(i)->GetDof();
-         vfes.GetElementVDofs(i, vdofs);
+         ElementTransformation* Tr = vfes->GetElementTransformation(i);
+         int dof = vfes->GetFE(i)->GetDof();
+         vfes->GetElementVDofs(i, vdofs);
          x.GetSubVector(vdofs, xval);
          current_xmat.UseExternalData(xval.GetData(), dof, num_equations);
          flux.SetSize(num_equations, dim*dof);
@@ -140,10 +142,10 @@ void DGOperator::Mult(const Vector &x, Vector &y) const
       DenseMatrix current_zmat; // view of element auxiliary result, dof x num_eq
       DenseMatrix current_ymat; // view of element result, dof x num_eq
       Array<int> vdofs;
-      for (int i=0; i<vfes.GetNE(); i++)
+      for (int i=0; i<vfes->GetNE(); i++)
       {
-         int dof = vfes.GetFE(i)->GetDof();
-         vfes.GetElementVDofs(i, vdofs);
+         int dof = vfes->GetFE(i)->GetDof();
+         vfes->GetElementVDofs(i, vdofs);
          z.GetSubVector(vdofs, zval);
          current_zmat.UseExternalData(zval.GetData(), dof, num_equations);
          current_ymat.SetSize(dof, num_equations);
@@ -163,5 +165,22 @@ void DGOperator::Update()
 
    ComputeInvMass();
    if (!weakdiv.empty()) {ComputeWeakDivergence();}
+}
+
+void DGOperator::AddBdrFaceIntegrator(BdrFaceIntegrator *bfi, Array<int> &bdr_marker)
+{
+   nonlinearForm->AddBdrFaceIntegrator(bfi, bdr_marker);
+   filter->AddBdrFaceIntegrator(bfi, bdr_marker);
+}
+
+// void DGOperator::AddBdrFaceIntegrators(Array<BdrFaceIntegrator*> bfnfi, Array<Array<int>> bfnfi_marker)
+// {
+//    for (int i = 0; i < bfnfi.Size(); i++)
+//    {
+//       nonlinearForm->AddBdrFaceIntegrator(bfnfi[i], bfnfi_marker[i]);
+//    }
+//    filter
+// }
+
 }
 

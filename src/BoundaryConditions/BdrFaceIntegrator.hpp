@@ -19,19 +19,17 @@ private:
    real_t max_char_speed;
    const RiemannSolver &rsolver;   // Numerical flux that maps F(u±,x) to hat(F)
    const FluxFunction &fluxFunction;
-   const int IntOrderOffset; // integration order offset, 2*p + IntOrderOffset.
+   // const int IntOrderOffset; // integration order offset, 2*p + IntOrderOffset.
 #ifndef MFEM_THREAD_SAFE
    Vector shape1;  // shape function value at an integration point - first elem
    Vector state1;  // state value at an integration point - first elem
    Vector state2;  // state value at an integration point - boundary state
-   Vector nor;     // normal vector, @see CalcOrtho
-   // Vector unit_nor; // unit normal vector
    Vector phys_ip; // integration point in physical space
    Vector fluxN;   // hat(F)(u,x)
 #endif
 
-    virtual void ComputeOuterState(const Vector& state1,
-      Vector& state2, FaceElementTransformations &Tr, const IntegrationPoint &ip) = 0;
+protected:
+   Vector nor;     // normal vector, @see CalcOrtho
 
 public:
    const int num_equations;  // the number of equations
@@ -41,9 +39,7 @@ public:
     * @param[in] rsolver numerical flux
     * @param[in] IntOrderOffset integration order offset
     */
-   BdrFaceIntegrator(
-      const RiemannSolver &rsolver,
-      const int IntOrderOffset=0);
+   BdrFaceIntegrator(const RiemannSolver &rsolver, const IntegrationRule *bdr_face_ir);
 
    /**
     * @brief Reset the Max Char Speed 0
@@ -60,6 +56,11 @@ public:
    }
 
    const FluxFunction &GetFluxFunction() { return fluxFunction; }
+
+   virtual void ComputeOuterState(const Vector& state1,
+      Vector& state2, FaceElementTransformations &Tr, const IntegrationPoint &ip) = 0;
+   virtual real_t ComputeBdrFaceFlux(const Vector &state1,
+      Vector &state2, Vector &fluxN, FaceElementTransformations &Tr, const IntegrationPoint &ip);
 
    /**
     * @brief implement <-hat(F)(u,x) n, [[v]]> with abstract hat(F) computed by

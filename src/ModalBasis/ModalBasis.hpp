@@ -24,15 +24,15 @@ public:
    ModalBasis(DG_FECollection &fec, Geometry::Type &gtype, int order, int dim);
    ~ModalBasis() = default;
 
-   void SetSolution(Vector &u_elem);
-   double Eval(Vector &x);
-   void Eval(const Vector& x, Vector& vec);
+   void ComputeModes(const Vector &nodes);
+   void SetModes(const Vector &modes);
+   void GetModes(Vector &modes);
+   real_t Eval(Vector &x);
+   DenseMatrix ComputeVDM(const IntegrationRule *ir);
    Vector EvalGrad(Vector &x);
-   Vector GetModes();
-   void SetModes(Vector& modes);
-   void SetNodes(Vector &u_elem);
-   void SetNodes(const Vector& modes, Vector& nodes);
-   DenseMatrix GetVandermonde();
+   void ComputeNodes(Vector &nodes);
+   void ComputeNodes(const Vector& modes, Vector& nodes);
+   const DenseMatrix& GetVandermonde();
    Array2D<int> GetPolyDegs();
 };
 

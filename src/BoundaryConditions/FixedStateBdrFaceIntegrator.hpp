@@ -12,9 +12,9 @@ class FixedStateBdrFaceIntegrator : public BdrFaceIntegrator
 {
 private:
     Vector fixed_state;
-    virtual void ComputeOuterState(const Vector &state1, Vector &state2, FaceElementTransformations &Tr, const IntegrationPoint &ip) override;
 public:
-    FixedStateBdrFaceIntegrator(const RiemannSolver &rsolver, const Vector &fixed_state_, const int IntOrderOffset=0);
+    FixedStateBdrFaceIntegrator(const RiemannSolver &rsolver, const IntegrationRule *bdr_face_ir, const Vector &fixed_state_);
+    virtual void ComputeOuterState(const Vector &state1, Vector &state2, FaceElementTransformations &Tr, const IntegrationPoint &ip) override;
 };
 
 

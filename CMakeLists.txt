@@ -1,12 +1,14 @@
 cmake_minimum_required(VERSION 3.15)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_CXX_COMPILER ${MPICXX})
 set(MPI_CXX_INCLUDE_PATH "")
 set(MPI_CXX_LIBRARIES "")
+
+add_definitions(-DHYPERBOLIC -DUSE_FILTER)
 
 
 project(Prandtl)
@@ -15,6 +17,7 @@ add_executable(${PROJECT_NAME} main.cpp)
 
 target_sources(${PROJECT_NAME}
     PRIVATE src/Operators/DGOperator.cpp 
+    PRIVATE src/Operators/DGFormIntegrator.cpp
     PRIVATE src/RiemannSolvers/RoeFlux.cpp
     PRIVATE src/RiemannSolvers/LaxFriedrichsFlux.cpp
     PRIVATE src/RiemannSolvers/HLLFlux.cpp
@@ -26,6 +29,8 @@ target_sources(${PROJECT_NAME}
     PRIVATE src/BoundaryConditions/TimeDependentBdrFaceIntegrator.cpp
     PRIVATE src/BoundaryConditions/WallBdrFaceIntegrator.cpp
     PRIVATE src/ModalBasis/ModalBasis.cpp
+    PRIVATE src/ODESolvers/DGODESolver.cpp
+    PRIVATE src/ODESolvers/RK3SSPExplicitSolver.cpp
     )
 
 # add_subdirectory(${CMAKE_SOURCE_DIR}/libs/mfem-4.7)
@@ -44,6 +49,9 @@ target_include_directories(${PROJECT_NAME}
     PUBLIC ${CMAKE_SOURCE_DIR}/src/Filters
     PUBLIC ${CMAKE_SOURCE_DIR}/src/BoundaryConditions
     PUBLIC ${CMAKE_SOURCE_DIR}/src/ModalBasis
+    PUBLIC ${CMAKE_SOURCE_DIR}/src/Physics
+    PUBLIC ${CMAKE_SOURCE_DIR}/src/ODESolvers
+    PUBLIC ${CMAKE_SOURCE_DIR}/src/Include
     )
 
 target_link_directories(${PROJECT_NAME}

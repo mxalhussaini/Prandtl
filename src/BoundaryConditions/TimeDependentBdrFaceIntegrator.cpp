@@ -4,10 +4,9 @@ namespace Prandtl
 {
 
 TimeDependentBdrFaceIntegrator::TimeDependentBdrFaceIntegrator(
-    const RiemannSolver &rsolver,
-    VectorFunctionCoefficient &vfc_, const real_t &t,
-    const int IntOrderOffset=0)
-    : BdrFaceIntegrator(rsolver, IntOrderOffset),
+    const RiemannSolver &rsolver, const IntegrationRule *bdr_face_ir,
+    VectorFunctionCoefficient &vfc_, const real_t &t)
+    : BdrFaceIntegrator(rsolver, bdr_face_ir),
       time(t), vfc(vfc_) {}
 
 void TimeDependentBdrFaceIntegrator::ComputeOuterState(
