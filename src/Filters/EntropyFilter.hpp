@@ -52,7 +52,7 @@ private:
     Vector state1, state2;
     DenseMatrix vdof_mat1, vdof_mat2, modes_mat;
 
-    real_t el_min_rho, el_min_p, el_min_e, rho, p, e, gamma;
+    real_t el_min_rho, el_min_p, el_min_e, rho, p, e;
     
     real_t zeta, zeta1, zeta2, zeta3;
     DenseMatrix hierarch_states;

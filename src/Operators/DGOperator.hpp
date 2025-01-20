@@ -1,6 +1,5 @@
 #pragma once
 
-#include "mfem.hpp"
 #include "Filter.hpp"
 #include "BdrFaceIntegrator.hpp"
 #include "DGFormIntegrator.hpp"

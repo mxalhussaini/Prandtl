@@ -34,7 +34,7 @@ void RK3SSPExplicitSolver::Step(Vector &x, real_t &t, real_t &dt)
    y.Add(dt, k);
    add(3./4, x, 1./4, y, y);
 #ifdef USE_FILTER
-   // f->filter->FilterSolution(y);
+   f->filter->FilterSolution(y);
    f->filter->GetFilterConstraints(y);
 #endif
    f->SetTime(t + dt/2);
@@ -44,7 +44,7 @@ void RK3SSPExplicitSolver::Step(Vector &x, real_t &t, real_t &dt)
    y.Add(dt, k);
    add(1./3, x, 2./3, y, x);
 #ifdef USE_FILTER
-   // f->filter->FilterSolution(x);
+   f->filter->FilterSolution(x);
 #endif
    t += dt;
 }

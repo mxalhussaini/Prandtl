@@ -144,7 +144,7 @@ void DGFormIntegrator::AssembleFaceVector(
    }
 }
 
-DGFormIntegrator::DGFormIntegrator( const RiemannSolver &rsolver,
+DGFormIntegrator::DGFormIntegrator(const RiemannSolver &rsolver,
     const IntegrationRule *vol_ir_, const IntegrationRule *face_ir_)
     :   NonlinearFormIntegrator(), rsolver(rsolver),
         vol_ir(vol_ir_), face_ir(face_ir_),
