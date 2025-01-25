@@ -79,6 +79,8 @@ DGSEMIntegrator::DGSEMIntegrator(
     D2_mod(Np - 1, Np - 1) -= 1.0 / ir->IntPoint(Np - 1).weight;
     D2_mod.Transpose();
 
+    D.Transpose();
+
     state1.SetSize(num_equations);
     state2.SetSize(num_equations);
 
@@ -101,6 +103,10 @@ DGSEMIntegrator::DGSEMIntegrator(
     grad_mat1.SetSize(num_equations, dim);
     grad_mat2.SetSize(num_equations, dim);
 
+    grad_xi.SetSize(num_equations);
+    grad_eta.SetSize(num_equations);
+    grad_zeta.SetSize(num_equations);
+
     adj1.SetSize(dim); adj2.SetSize(dim);
     metric1.SetSize(dim); metric2.SetSize(dim);
     nor.SetSize(dim); nor1.SetSize(dim); nor2.SetSize(dim); unit_nor.SetSize(dim);
@@ -119,7 +125,6 @@ DGSEMIntegrator::DGSEMIntegrator(
     dU_inviscid.SetSize(num_equations);
     dU_viscous.SetSize(num_equations);
     dU.SetSize(num_equations);
-
 
     SubcellMetricXi.SetSize(dim, Np_z * Np_y * (Np_x + 1), pmesh->GetNE());
     SubcellMetricEta.SetSize(dim, Np_z * (Np_y + 1) * Np_x, pmesh->GetNE());
@@ -147,6 +152,8 @@ void DGSEMIntegrator::AssembleFaceVector(const FiniteElement &el1, const FiniteE
     DenseMatrix elvect1_mat(elvect.GetData(), dof1, num_equations);
     DenseMatrix elvect2_mat(elvect.GetData() + dof1 * num_equations, dof2, num_equations);
 
+    // all the viscous terms can now be removed (after clocking the original sim)
+
 #ifdef PARABOLIC
     if (currentMode == DIVERGENCE)
     {
@@ -173,7 +180,6 @@ void DGSEMIntegrator::AssembleFaceVector(const FiniteElement &el1, const FiniteE
                 grad->FaceNbrData().GetSubVector(grad_indices, grad_vdofs);
             }
         };
-
 
         extractGrads(grad_x, grad_x_vdofs1, grad_indices1, false);
         extractGrads(grad_x, grad_x_vdofs2, grad_indices2, is_face_nbr);
@@ -273,48 +279,6 @@ void DGSEMIntegrator::AssembleFaceVector(const FiniteElement &el1, const FiniteE
 
         AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux1, elvect1_mat);
         AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J2), shape2, flux2, elvect2_mat);
-    }
-}
-
-void DGSEMIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe, const FiniteElement &test_fe,
-   ElementTransformation &Trans, DenseMatrix &elmat)
-{
-    int dof = trial_fe.GetDof();
-    Vector d_col;
-
-    DenseMatrix dshape(dof, dim);
-    DenseMatrix gshape(dof, dim);
-    DenseMatrix Jinv(dim);
-    Vector shape(dof);
-    elmat.SetSize(dim * dof, dof);
-    DenseMatrix elmat_comp(dof, dof);
-
-    elmat = 0.0;
-
-    for (int i = 0; i < ir_vol->GetNPoints(); i++)
-    {
-        const IntegrationPoint &ip = ir_vol->IntPoint(i);
-        Trans.SetIntPoint(&ip);
-
-        CalcInverse(Trans.Jacobian(), Jinv);
-
-        test_fe.CalcPhysShape(Trans, shape);
-        trial_fe.CalcDShape(ip, dshape);
-
-        Mult(dshape, Jinv, gshape);
-
-        for (int d = 0; d < dim; ++d)
-        {
-            gshape.GetColumnReference(d, d_col);
-            MultVWt(shape, d_col, elmat_comp);
-            for (int jj = 0; jj < dof; ++jj)
-            {
-                for (int ii = 0; ii < dof; ++ii)
-                {
-                    elmat(d * dof + ii, jj) += elmat_comp(ii, jj);
-                }
-            }
-        }
     }
 }
 
@@ -446,7 +410,6 @@ void DGSEMIntegrator::AssembleElementVector(const FiniteElement &el,
                         max_char_speed = std::max(max_char_speed, rsolver.ComputeVolumeFlux(state1, state2, metric1, metric2, g));
                         G_inviscid(id1).SetCol(m, g);
                         G_inviscid(id2).SetCol(j, g);
-
                     }
                     if (dim > 2)
                     {
@@ -507,8 +470,7 @@ void DGSEMIntegrator::AssembleElementVector(const FiniteElement &el,
                         D_mod.GetColumn(k, Dx);
                         for (int l = 0; l < Np_z; l++)
                         {
-                            H_viscous.GetColumn(l * Np_x * Np_y + j * Np_x + i, h);
-                            dU = h;
+                            H_viscous.GetColumn(l * Np_x * Np_y + j * Np_x + i, dU);
                             dU *= Dx(l);
                             dU_viscous += dU;
                         }
@@ -530,7 +492,919 @@ void DGSEMIntegrator::AssembleElementVector(const FiniteElement &el,
     }
 }
 
-void DGSEMIntegrator::ComputeFVFluxes(const DenseMatrix &vdof_mat, const real_t &alpha_val, ElementTransformation &Tr, DenseMatrix &elvect_mat)
+void DGSEMIntegrator::AssembleElementMatrix2(const FiniteElement &trial_fe, const FiniteElement &test_fe,
+   ElementTransformation &Trans, DenseMatrix &elmat)
+{
+    int dof = trial_fe.GetDof();
+    Vector d_col;
+
+    DenseMatrix dshape(dof, dim);
+    DenseMatrix gshape(dof, dim);
+    DenseMatrix Jinv(dim);
+    Vector shape(dof);
+    elmat.SetSize(dim * dof, dof);
+    DenseMatrix elmat_comp(dof, dof);
+
+    elmat = 0.0;
+
+    for (int i = 0; i < ir_vol->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir_vol->IntPoint(i);
+        Trans.SetIntPoint(&ip);
+
+        CalcInverse(Trans.Jacobian(), Jinv);
+
+        test_fe.CalcPhysShape(Trans, shape);
+        trial_fe.CalcDShape(ip, dshape);
+
+        Mult(dshape, Jinv, gshape);
+
+        for (int d = 0; d < dim; ++d)
+        {
+            gshape.GetColumnReference(d, d_col);
+            MultVWt(shape, d_col, elmat_comp);
+            for (int jj = 0; jj < dof; ++jj)
+            {
+                for (int ii = 0; ii < dof; ++ii)
+                {
+                    elmat(d * dof + ii, jj) += elmat_comp(ii, jj);
+                }
+            }
+        }
+    }
+}
+
+void DGSEMIntegrator::AssembleFaceVector(const FiniteElement &el1, const FiniteElement &el2,
+                                         FaceElementTransformations &Tr, const Vector &el_u,
+                                         const Vector &el_dudx, const Vector &el_dudy,
+                                         const Vector &el_dudz, Vector &el_dudt)
+{
+    const int dof1 = el1.GetDof();
+    const int dof2 = el2.GetDof();
+
+    shape1.SetSize(dof1);
+    shape2.SetSize(dof2);
+
+    el_dudt.SetSize((dof1 + dof2) * num_equations);
+    el_dudt = 0.0;
+
+    const DenseMatrix el_u_mat1(el_u.GetData(), dof1, num_equations);
+    const DenseMatrix el_u_mat2(el_u.GetData() + dof1 * num_equations, dof2, num_equations);
+
+    const DenseMatrix el_dudx_mat1(el_dudx.GetData(), dof1, num_equations);
+    const DenseMatrix el_dudx_mat2(el_dudx.GetData() + dof1 * num_equations, dof2, num_equations);
+
+    const DenseMatrix el_dudy_mat1(el_dudy.GetData(), dof1, num_equations);
+    const DenseMatrix el_dudy_mat2(el_dudy.GetData() + dof1 * num_equations, dof2, num_equations);
+
+    const DenseMatrix el_dudz_mat1(el_dudz.GetData(), dof1, num_equations);
+    const DenseMatrix el_dudz_mat2(el_dudz.GetData() + dof1 * num_equations, dof2, num_equations);
+    
+    DenseMatrix el_dudt_mat1(el_dudt.GetData(), dof1, num_equations);
+    DenseMatrix el_dudt_mat2(el_dudt.GetData() + dof1 * num_equations, dof2, num_equations);
+
+    for (int i = 0; i < ir_face->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir_face->IntPoint(i);
+        Tr.SetAllIntPoints(&ip);
+        J1 = Tr.GetElement1Transformation().Weight();
+        J2 = Tr.GetElement2Transformation().Weight();
+        el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+        el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
+
+        el_u_mat1.MultTranspose(shape1, state1);
+        el_dudx_mat1.MultTranspose(shape1, grad_state);
+        grad_mat1.SetCol(0, grad_state);
+        el_dudy_mat1.MultTranspose(shape1, grad_state);
+        grad_mat1.SetCol(1, grad_state);
+        el_dudz_mat1.MultTranspose(shape1, grad_state);
+        grad_mat1.SetCol(2, grad_state);
+
+        el_u_mat2.MultTranspose(shape2, state2);
+        el_dudx_mat2.MultTranspose(shape2, grad_state);
+        grad_mat2.SetCol(0, grad_state);
+        el_dudy_mat2.MultTranspose(shape2, grad_state);
+        grad_mat2.SetCol(1, grad_state);
+        el_dudz_mat2.MultTranspose(shape2, grad_state);
+        grad_mat2.SetCol(2, grad_state);    
+
+        CalcOrtho(Tr.Jacobian(), nor);
+
+        max_char_speed = std::max(max_char_speed, rsolver.ComputeFaceFlux(state1, state2, nor, flux_num));
+        flux1 = flux_num;
+        flux2 = flux_num;
+        flux1.Neg();
+
+        fluxFunction.ComputeViscousFlux(state1, grad_mat1, flux_mat1);
+        fluxFunction.ComputeViscousFlux(state2, grad_mat2, flux_mat2);
+        // add viscous eigenvalue estimates
+        flux_mat1 += flux_mat2;
+        flux_mat1 *= 0.5;
+        flux_mat1.Mult(nor, flux_num);
+        flux1 += flux_num;
+        flux2 -= flux_num;  
+
+        AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux1, el_dudt_mat1);
+        AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J2), shape2, flux2, el_dudt_mat2);
+    }
+}
+
+void DGSEMIntegrator::AssembleFaceVector(const FiniteElement &el1, const FiniteElement &el2,
+                                         FaceElementTransformations &Tr, const Vector &el_u,
+                                         const Vector &el_dudx, const Vector &el_dudy, Vector &el_dudt)
+{
+    const int dof1 = el1.GetDof();
+    const int dof2 = el2.GetDof();
+
+    shape1.SetSize(dof1);
+    shape2.SetSize(dof2);
+
+    el_dudt.SetSize((dof1 + dof2) * num_equations);
+    el_dudt = 0.0;
+
+    const DenseMatrix el_u_mat1(el_u.GetData(), dof1, num_equations);
+    const DenseMatrix el_u_mat2(el_u.GetData() + dof1 * num_equations, dof2, num_equations);
+
+    const DenseMatrix el_dudx_mat1(el_dudx.GetData(), dof1, num_equations);
+    const DenseMatrix el_dudx_mat2(el_dudx.GetData() + dof1 * num_equations, dof2, num_equations);
+
+    const DenseMatrix el_dudy_mat1(el_dudy.GetData(), dof1, num_equations);
+    const DenseMatrix el_dudy_mat2(el_dudy.GetData() + dof1 * num_equations, dof2, num_equations);
+    
+    DenseMatrix el_dudt_mat1(el_dudt.GetData(), dof1, num_equations);
+    DenseMatrix el_dudt_mat2(el_dudt.GetData() + dof1 * num_equations, dof2, num_equations);
+
+    for (int i = 0; i < ir_face->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir_face->IntPoint(i);
+        Tr.SetAllIntPoints(&ip);
+        J1 = Tr.GetElement1Transformation().Weight();
+        J2 = Tr.GetElement2Transformation().Weight();
+        el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+        el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
+
+        el_u_mat1.MultTranspose(shape1, state1);
+        el_dudx_mat1.MultTranspose(shape1, grad_state);
+        grad_mat1.SetCol(0, grad_state);
+        el_dudy_mat1.MultTranspose(shape1, grad_state);
+        grad_mat1.SetCol(1, grad_state);
+
+        el_u_mat2.MultTranspose(shape2, state2);
+        el_dudx_mat2.MultTranspose(shape2, grad_state);
+        grad_mat2.SetCol(0, grad_state);
+        el_dudy_mat2.MultTranspose(shape2, grad_state);
+        grad_mat2.SetCol(1, grad_state);     
+
+        CalcOrtho(Tr.Jacobian(), nor);
+
+        max_char_speed = std::max(max_char_speed, rsolver.ComputeFaceFlux(state1, state2, nor, flux_num));
+        flux1 = flux_num;
+        flux2 = flux_num;
+        flux1.Neg();
+
+        fluxFunction.ComputeViscousFlux(state1, grad_mat1, flux_mat1);
+        fluxFunction.ComputeViscousFlux(state2, grad_mat2, flux_mat2);
+        // add viscous eigenvalue estimates
+        flux_mat1 += flux_mat2;
+        flux_mat1 *= 0.5;
+        flux_mat1.Mult(nor, flux_num);
+        flux1 += flux_num;
+        flux2 -= flux_num;  
+
+        AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux1, el_dudt_mat1);
+        AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J2), shape2, flux2, el_dudt_mat2);
+    }
+}
+
+void DGSEMIntegrator::AssembleFaceVector(const FiniteElement &el1, const FiniteElement &el2,
+                                         FaceElementTransformations &Tr, const Vector &el_u,
+                                         const Vector &el_dudx, Vector &el_dudt)
+{
+    const int dof1 = el1.GetDof();
+    const int dof2 = el2.GetDof();
+
+    shape1.SetSize(dof1);
+    shape2.SetSize(dof2);
+
+    el_dudt.SetSize((dof1 + dof2) * num_equations);
+    el_dudt = 0.0;
+
+    const DenseMatrix el_u_mat1(el_u.GetData(), dof1, num_equations);
+    const DenseMatrix el_u_mat2(el_u.GetData() + dof1 * num_equations, dof2, num_equations);
+
+    const DenseMatrix el_dudx_mat1(el_dudx.GetData(), dof1, num_equations);
+    const DenseMatrix el_dudx_mat2(el_dudx.GetData() + dof1 * num_equations, dof2, num_equations);
+    
+    DenseMatrix el_dudt_mat1(el_dudt.GetData(), dof1, num_equations);
+    DenseMatrix el_dudt_mat2(el_dudt.GetData() + dof1 * num_equations, dof2, num_equations);
+
+    for (int i = 0; i < ir_face->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir_face->IntPoint(i);
+        Tr.SetAllIntPoints(&ip);
+        J1 = Tr.GetElement1Transformation().Weight();
+        J2 = Tr.GetElement2Transformation().Weight();
+        el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+        el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
+
+        el_u_mat1.MultTranspose(shape1, state1);
+        el_dudx_mat1.MultTranspose(shape1, grad_state);
+        grad_mat1.SetCol(0, grad_state);
+
+        el_u_mat2.MultTranspose(shape2, state2);
+        el_dudx_mat2.MultTranspose(shape2, grad_state);
+        grad_mat2.SetCol(0, grad_state);      
+
+        nor(0) = (Tr.GetElement1IntPoint().x - 0.5) * 2.0;
+
+        max_char_speed = std::max(max_char_speed, rsolver.ComputeFaceFlux(state1, state2, nor, flux_num));
+        flux1 = flux_num;
+        flux2 = flux_num;
+        flux1.Neg();
+
+        fluxFunction.ComputeViscousFlux(state1, grad_mat1, flux_mat1);
+        fluxFunction.ComputeViscousFlux(state2, grad_mat2, flux_mat2);
+        // add viscous eigenvalue estimates
+        flux_mat1 += flux_mat2;
+        flux_mat1 *= 0.5;
+        flux_mat1.Mult(nor, flux_num);
+        flux1 += flux_num;
+        flux2 -= flux_num;  
+
+        AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux1, el_dudt_mat1);
+        AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J2), shape2, flux2, el_dudt_mat2);
+    }
+}
+
+void DGSEMIntegrator::AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr, const Vector &el_u, const Vector &el_dudx, const Vector &el_dudy, const Vector &el_dudz, Vector &el_dudt)
+{
+    const int dof = el.GetDof();
+
+    fes0->GetElementDofs(Tr.ElementNo, alpha_indx);
+    alpha->GetSubVector(alpha_indx, alpha_dof);
+
+    el_dudt.SetSize(dof * num_equations);
+    el_dudt = 0.0;
+
+    const DenseMatrix el_u_mat(el_u.GetData(), dof, num_equations);
+    const DenseMatrix el_dudx_mat(el_dudx.GetData(), dof, num_equations);
+    const DenseMatrix el_dudy_mat(el_dudy.GetData(), dof, num_equations);
+    const DenseMatrix el_dudz_mat(el_dudz.GetData(), dof, num_equations);
+    DenseMatrix el_dudt_mat(el_dudt.GetData(), dof, num_equations);
+
+    ComputeFVFluxes(el_u_mat, alpha_dof(0), Tr, el_dudt_mat);
+
+    for (int i = 0; i < ir_vol->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip1 = ir_vol->IntPoint(i);
+        el_u_mat.GetRow(id1, state1);
+        Tr.SetIntPoint(&ip1);
+        adj1 = Tr.AdjugateJacobian(); // does this work for 1D?
+
+        el_dudx_mat.GetRow(i, grad_state);
+        grad_mat1.SetCol(0, grad_state);
+
+        el_dudy_mat.GetRow(i, grad_state);
+        grad_mat1.SetCol(1, grad_state);
+
+        el_dudz_mat.GetRow(i, grad_state);
+        grad_mat1.SetCol(1, grad_state);        
+
+        fluxFunction.ComputeViscousFlux(state1, grad_mat1, flux_mat1);
+        // add viscous eigenvalue estimates
+
+        mfem::MultABt(adj1, flux_mat1, flux_mat_ref);
+        flux_mat_ref.GetRow(0, f);
+        F_viscous.SetCol(i, f);
+
+        flux_mat_ref.GetRow(1, g);
+        G_viscous.SetCol(i, g);
+
+        flux_mat_ref.GetRow(2, h);
+        H_viscous.SetCol(i, h);        
+    }
+    
+    for (int k = 0; k < Np_z; k++)
+    {
+        for (int j = 0; j < Np_y; j++)
+        {
+            for (int i = 0; i < Np_x; i++)
+            {
+                id1 = k * Np_y * Np_x + j * Np_x + i;
+                const IntegrationPoint &ip1 = ir_vol->IntPoint(id1);
+                el_u_mat.GetRow(id1, state1);
+                Tr.SetIntPoint(&ip1);
+                J = Tr.Weight();
+                adj1 = Tr.AdjugateJacobian();
+
+                adj1.GetRow(0, metric1);
+                f = 0.0;
+                F_inviscid(id1).SetCol(i, f);
+
+                for (int m = i + 1; m < Np_x; m++)
+                {
+                    id2 = k * Np_y * Np_x + j * Np_x + m;
+                    const IntegrationPoint &ip2 = ir_vol->IntPoint(id2);
+                    el_u_mat.GetRow(id2, state2);
+                    Tr.SetIntPoint(&ip2);
+                    adj2 = Tr.AdjugateJacobian();
+                    adj2.GetRow(0, metric2);
+                    max_char_speed = std::max(max_char_speed, rsolver.ComputeVolumeFlux(state1, state2, metric1, metric2, f));
+                    F_inviscid(id1).SetCol(m, f);
+                    F_inviscid(id2).SetCol(i, f);
+                }
+
+                adj1.GetRow(1, metric1);
+                g = 0.0;
+                G_inviscid(id1).SetCol(j, g);
+                for (int m = j + 1; m < Np_y; m++)
+                {
+                    id2 = k * Np_y * Np_x + m * Np_x + i;
+                    const IntegrationPoint &ip3 = ir_vol->IntPoint(id2);
+                    el_u_mat.GetRow(id2, state2);
+                    Tr.SetIntPoint(&ip3);
+                    adj2 = Tr.AdjugateJacobian();
+                    adj2.GetRow(1, metric2);
+                    max_char_speed = std::max(max_char_speed, rsolver.ComputeVolumeFlux(state1, state2, metric1, metric2, g));
+                    G_inviscid(id1).SetCol(m, g);
+                    G_inviscid(id2).SetCol(j, g);
+                }
+
+                adj1.GetRow(2, metric1);
+                h = 0.0;
+                H_inviscid(id1).SetCol(k, h);
+                for (int m = k + 1; m < Np_z; m++)
+                {
+                    id2 = m * Np_y * Np_x + j * Np_x + i;
+                    const IntegrationPoint &ip4 = ir_vol->IntPoint(id2);
+                    el_u_mat.GetRow(id2, state2);
+                    Tr.SetIntPoint(&ip4);
+                    adj2 = Tr.AdjugateJacobian();
+                    adj2.GetRow(2, metric2);
+                    max_char_speed = std::max(max_char_speed, rsolver.ComputeVolumeFlux(state1, state2, metric1, metric2, h));
+                    H_inviscid(id1).SetCol(m, h);
+                    H_inviscid(id2).SetCol(k, g);
+                }
+
+                el_dudt_mat.GetRow(id1, dU_sub);
+
+                D2_mod.GetColumn(i, Dx); 
+                F_inviscid(id1).Mult(Dx, dU_inviscid);
+
+                dU_viscous = 0.0;
+                D_mod.GetColumn(i, Dx);
+                for (int l = 0; l < Np_x; l++)
+                {
+                    F_viscous.GetColumn(k * Np_x * Np_y + j * Np_x + l, dU);
+                    dU *= Dx(l);
+                    dU_viscous += dU;
+                }
+
+                D2_mod.GetColumn(j, Dx);
+                G_inviscid(id1).Mult(Dx, dU);
+                dU_inviscid += dU;
+                
+                D_mod.GetColumn(j, Dx);
+                for (int l = 0; l < Np_y; l++)
+                {
+                    G_viscous.GetColumn(k * Np_x * Np_y + l * Np_x + i, dU);
+                    dU *= Dx(l);
+                    dU_viscous += dU;
+                }
+
+                D2_mod.GetColumn(k, Dx);
+                H_inviscid(id1).Mult(Dx, dU);
+                dU_inviscid += dU;
+
+                D_mod.GetColumn(k, Dx);
+                for (int l = 0; l < Np_z; l++)
+                {
+                    H_viscous.GetColumn(l * Np_x * Np_y + j * Np_x + i, dU);
+                    dU *= Dx(l);
+                    dU_viscous += dU;
+                }
+         
+                dU_inviscid.Neg();
+                dU_inviscid *= (1.0 - alpha_dof(0));
+
+                dU_inviscid += dU_sub;    
+                dU_inviscid += dU_viscous;
+
+                dU_inviscid /=J;
+                el_dudt_mat.SetRow(id1, dU_inviscid);
+            }
+        }
+    }    
+}
+
+void DGSEMIntegrator::AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr, const Vector &el_u, const Vector &el_dudx, const Vector &el_dudy, Vector &el_dudt)
+{
+    const int dof = el.GetDof();
+
+    fes0->GetElementDofs(Tr.ElementNo, alpha_indx);
+    alpha->GetSubVector(alpha_indx, alpha_dof);
+
+    el_dudt.SetSize(dof * num_equations);
+    el_dudt = 0.0;
+
+    const DenseMatrix el_u_mat(el_u.GetData(), dof, num_equations);
+    const DenseMatrix el_dudx_mat(el_dudx.GetData(), dof, num_equations);
+    const DenseMatrix el_dudy_mat(el_dudy.GetData(), dof, num_equations);
+    DenseMatrix el_dudt_mat(el_dudt.GetData(), dof, num_equations);
+
+    ComputeFVFluxes(el_u_mat, alpha_dof(0), Tr, el_dudt_mat);
+
+    for (int i = 0; i < ir_vol->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip1 = ir_vol->IntPoint(i);
+        el_u_mat.GetRow(id1, state1);
+        Tr.SetIntPoint(&ip1);
+        adj1 = Tr.AdjugateJacobian(); // does this work for 1D?
+
+        el_dudx_mat.GetRow(i, grad_state);
+        grad_mat1.SetCol(0, grad_state);
+
+        el_dudy_mat.GetRow(i, grad_state);
+        grad_mat1.SetCol(1, grad_state);
+
+        fluxFunction.ComputeViscousFlux(state1, grad_mat1, flux_mat1);
+        // add viscous eigenvalue estimates
+
+        mfem::MultABt(adj1, flux_mat1, flux_mat_ref);
+        flux_mat_ref.GetRow(0, f);
+        F_viscous.SetCol(i, f);
+
+        flux_mat_ref.GetRow(1, g);
+        G_viscous.SetCol(i, g);
+    }
+    
+    for (int j = 0; j < Np_y; j++)
+    {
+        for (int i = 0; i < Np_x; i++)
+        {
+            id1 = j * Np_x + i;
+            const IntegrationPoint &ip1 = ir_vol->IntPoint(id1);
+            el_u_mat.GetRow(id1, state1);
+            Tr.SetIntPoint(&ip1);
+            J = Tr.Weight();
+            adj1 = Tr.AdjugateJacobian();
+            adj1.GetRow(0, metric1);
+            f = 0.0;
+            F_inviscid(id1).SetCol(i, f);
+
+            for (int m = i + 1; m < Np_x; m++)
+            {
+                id2 = j * Np_x + m;
+                const IntegrationPoint &ip2 = ir_vol->IntPoint(id2);
+                el_u_mat.GetRow(id2, state2);
+                Tr.SetIntPoint(&ip2);
+                adj2 = Tr.AdjugateJacobian();
+                adj2.GetRow(0, metric2);
+                max_char_speed = std::max(max_char_speed, rsolver.ComputeVolumeFlux(state1, state2, metric1, metric2, f));
+                F_inviscid(id1).SetCol(m, f);
+                F_inviscid(id2).SetCol(i, f);
+            }
+
+            adj1.GetRow(1, metric1);
+            g = 0.0;
+            G_inviscid(id1).SetCol(j, g);
+            for (int m = j + 1; m < Np_y; m++)
+            {
+                id2 = m * Np_x + i;
+                const IntegrationPoint &ip3 = ir_vol->IntPoint(id2);
+                el_u_mat.GetRow(id2, state2);
+                Tr.SetIntPoint(&ip3);
+                adj2 = Tr.AdjugateJacobian();
+                adj2.GetRow(1, metric2);
+                max_char_speed = std::max(max_char_speed, rsolver.ComputeVolumeFlux(state1, state2, metric1, metric2, g));
+                G_inviscid(id1).SetCol(m, g);
+                G_inviscid(id2).SetCol(j, g);
+            }
+
+            el_dudt_mat.GetRow(id1, dU_sub);
+
+            D2_mod.GetColumn(i, Dx); 
+            F_inviscid(id1).Mult(Dx, dU_inviscid);
+
+            dU_viscous = 0.0;
+            D_mod.GetColumn(i, Dx);
+            for (int l = 0; l < Np_x; l++)
+            {
+                F_viscous.GetColumn(j * Np_x + l, dU);
+                dU *= Dx(l);
+                dU_viscous += dU;
+            }
+
+            D2_mod.GetColumn(j, Dx);
+            G_inviscid(id1).Mult(Dx, dU);
+            dU_inviscid += dU;
+            
+            D_mod.GetColumn(j, Dx);
+            for (int l = 0; l < Np_y; l++)
+            {
+                G_viscous.GetColumn(l * Np_x + i, dU);
+                dU *= Dx(l);
+                dU_viscous += dU;
+            }
+        
+            dU_inviscid.Neg();
+            dU_inviscid *= (1.0 - alpha_dof(0));
+
+            dU_inviscid += dU_sub;    
+            dU_inviscid += dU_viscous;
+
+            dU_inviscid /= J;
+            el_dudt_mat.SetRow(id1, dU_inviscid);
+        }
+    }   
+}
+
+void DGSEMIntegrator::AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr, const Vector &el_u, const Vector &el_dudx, Vector &el_dudt)
+{
+    const int dof = el.GetDof();
+
+    fes0->GetElementDofs(Tr.ElementNo, alpha_indx);
+    alpha->GetSubVector(alpha_indx, alpha_dof);
+
+    el_dudt.SetSize(dof * num_equations);
+    el_dudt = 0.0;
+
+    const DenseMatrix el_u_mat(el_u.GetData(), dof, num_equations);
+    const DenseMatrix el_dudx_mat(el_dudx.GetData(), dof, num_equations);
+    DenseMatrix el_dudt_mat(el_dudt.GetData(), dof, num_equations);
+
+    ComputeFVFluxes(el_u_mat, alpha_dof(0), Tr, el_dudt_mat);
+
+    for (int i = 0; i < ir_vol->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip1 = ir_vol->IntPoint(i);
+        el_u_mat.GetRow(id1, state1);
+        Tr.SetIntPoint(&ip1);
+        adj1 = Tr.AdjugateJacobian(); // does this work for 1D?
+
+        el_dudx_mat.GetRow(i, grad_state);
+        grad_mat1.SetCol(0, grad_state);
+
+        fluxFunction.ComputeViscousFlux(state1, grad_mat1, flux_mat1);
+        // add viscous eigenvalue estimates
+
+        mfem::MultABt(adj1, flux_mat1, flux_mat_ref);
+        flux_mat_ref.GetRow(0, f);
+        F_viscous.SetCol(i, f);
+    }
+    
+    for (int i = 0; i < Np_x; i++)
+    {
+        const IntegrationPoint &ip1 = ir_vol->IntPoint(id1);
+        el_u_mat.GetRow(id1, state1);
+        Tr.SetIntPoint(&ip1);
+        J = Tr.Weight();
+        adj1 = Tr.AdjugateJacobian();
+        adj1.GetRow(0, metric1);
+        f = 0.0;
+        F_inviscid(id1).SetCol(i, f);
+
+        for (int m = i + 1; m < Np_x; m++)
+        {
+            const IntegrationPoint &ip2 = ir_vol->IntPoint(id2);
+            el_u_mat.GetRow(id2, state2);
+            Tr.SetIntPoint(&ip2);
+            adj2 = Tr.AdjugateJacobian();
+            adj2.GetRow(0, metric2);
+            max_char_speed = std::max(max_char_speed, rsolver.ComputeVolumeFlux(state1, state2, metric1, metric2, f));
+            F_inviscid(i).SetCol(m, f);
+            F_inviscid(m).SetCol(i, f);
+        }
+
+        el_dudt_mat.GetRow(id1, dU_sub);
+
+        D2_mod.GetColumn(i, Dx); 
+        F_inviscid(id1).Mult(Dx, dU_inviscid);
+
+        dU_viscous = 0.0;
+        D_mod.GetColumn(i, Dx);
+        for (int l = 0; l < Np_x; l++)
+        {
+            F_viscous.GetColumn(l, dU);
+            dU *= Dx(l);
+            dU_viscous += dU;
+        }
+    
+        dU_inviscid.Neg();
+        dU_inviscid *= (1.0 - alpha_dof(0));
+
+        dU_inviscid += dU_sub;    
+        dU_inviscid += dU_viscous;
+
+        dU_inviscid /= J;
+        el_dudt_mat.SetRow(id1, dU_inviscid);
+    }   
+}
+
+void DGSEMIntegrator::AssembleLiftingFaceVector(const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudx, Vector &el_dudy, Vector &el_dudz)
+{
+    const int dof1 = el1.GetDof();
+    const int dof2 = el2.GetDof();
+
+    shape1.SetSize(dof1);
+    shape2.SetSize(dof2);
+
+    el_dudx.SetSize((dof1 + dof2) * num_equations);
+    el_dudy.SetSize((dof1 + dof2) * num_equations);
+    el_dudz.SetSize((dof1 + dof2) * num_equations);
+    el_dudx = 0.0;
+    el_dudy = 0.0;
+    el_dudz = 0.0;
+
+    const DenseMatrix el_u_mat1(el_u.GetData(), dof1, num_equations);
+    const DenseMatrix el_u_mat2(el_u.GetData() + dof1 * num_equations, dof2, num_equations);
+    
+    DenseMatrix el_dudx_mat1(el_dudx.GetData(), dof1, num_equations);
+    DenseMatrix el_dudx_mat2(el_dudx.GetData() + dof1 * num_equations, dof2, num_equations);
+
+    DenseMatrix el_dudy_mat1(el_dudy.GetData(), dof1, num_equations);
+    DenseMatrix el_dudy_mat2(el_dudy.GetData() + dof1 * num_equations, dof2, num_equations);
+
+    DenseMatrix el_dudz_mat1(el_dudz.GetData(), dof1, num_equations);
+    DenseMatrix el_dudz_mat2(el_dudz.GetData() + dof1 * num_equations, dof2, num_equations);
+
+    for (int i = 0; i < ir_face->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir_face->IntPoint(i);
+        Tr.SetAllIntPoints(&ip);
+        J1 = Tr.GetElement1Transformation().Weight();
+        J2 = Tr.GetElement2Transformation().Weight();
+        el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+        el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
+
+        el_u_mat1.MultTranspose(shape1, state1);
+        el_u_mat2.MultTranspose(shape2, state2);
+   
+        CalcOrtho(Tr.Jacobian(), nor);
+
+        flux1 = state2;
+        flux1 -= state1;
+        flux_num = flux2 = flux1;
+        flux1 *= 0.5 * nor(0);
+
+        AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux1, el_dudx_mat1);
+        AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J2), shape2, flux1, el_dudx_mat2);
+
+        flux2 *= 0.5 * nor(1);
+
+        AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux2, el_dudy_mat1);
+        AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J2), shape2, flux2, el_dudy_mat2);
+
+        flux_num *= 0.5 * nor(2);
+        AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux_num, el_dudz_mat1);
+        AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J2), shape2, flux_num, el_dudz_mat2);       
+    }
+}
+
+void DGSEMIntegrator::AssembleLiftingFaceVector(const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudx, Vector &el_dudy)
+{
+    const int dof1 = el1.GetDof();
+    const int dof2 = el2.GetDof();
+
+    shape1.SetSize(dof1);
+    shape2.SetSize(dof2);
+
+    el_dudx.SetSize((dof1 + dof2) * num_equations);
+    el_dudy.SetSize((dof1 + dof2) * num_equations);
+    el_dudx = 0.0;
+    el_dudy = 0.0;
+
+    const DenseMatrix el_u_mat1(el_u.GetData(), dof1, num_equations);
+    const DenseMatrix el_u_mat2(el_u.GetData() + dof1 * num_equations, dof2, num_equations);
+    
+    DenseMatrix el_dudx_mat1(el_dudx.GetData(), dof1, num_equations);
+    DenseMatrix el_dudx_mat2(el_dudx.GetData() + dof1 * num_equations, dof2, num_equations);
+
+    DenseMatrix el_dudy_mat1(el_dudy.GetData(), dof1, num_equations);
+    DenseMatrix el_dudy_mat2(el_dudy.GetData() + dof1 * num_equations, dof2, num_equations);
+
+    for (int i = 0; i < ir_face->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir_face->IntPoint(i);
+        Tr.SetAllIntPoints(&ip);
+        J1 = Tr.GetElement1Transformation().Weight();
+        J2 = Tr.GetElement2Transformation().Weight();
+        el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+        el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
+
+        el_u_mat1.MultTranspose(shape1, state1);
+        el_u_mat2.MultTranspose(shape2, state2);
+   
+        CalcOrtho(Tr.Jacobian(), nor);
+
+        flux1 = state2;
+        flux1 -= state1;
+        flux2 = flux1;
+        flux1 *= 0.5 * nor(0);
+
+        AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux1, el_dudx_mat1);
+        AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J2), shape2, flux1, el_dudx_mat2);
+
+        flux2 *= 0.5 * nor(1);
+
+        AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux2, el_dudy_mat1);
+        AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J2), shape2, flux2, el_dudy_mat2);
+    }
+}
+
+void DGSEMIntegrator::AssembleLiftingFaceVector(const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudx)
+{
+    const int dof1 = el1.GetDof();
+    const int dof2 = el2.GetDof();
+
+    shape1.SetSize(dof1);
+    shape2.SetSize(dof2);
+
+    el_dudx.SetSize((dof1 + dof2) * num_equations);
+    el_dudx = 0.0;
+
+    const DenseMatrix el_u_mat1(el_u.GetData(), dof1, num_equations);
+    const DenseMatrix el_u_mat2(el_u.GetData() + dof1 * num_equations, dof2, num_equations);
+    
+    DenseMatrix el_dudx_mat1(el_dudx.GetData(), dof1, num_equations);
+    DenseMatrix el_dudx_mat2(el_dudx.GetData() + dof1 * num_equations, dof2, num_equations);
+
+    for (int i = 0; i < ir_face->GetNPoints(); i++)
+    {
+        const IntegrationPoint &ip = ir_face->IntPoint(i);
+        Tr.SetAllIntPoints(&ip);
+        J1 = Tr.GetElement1Transformation().Weight();
+        J2 = Tr.GetElement2Transformation().Weight();
+        el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+        el2.CalcShape(Tr.GetElement2IntPoint(), shape2);
+
+        el_u_mat1.MultTranspose(shape1, state1);
+        el_u_mat2.MultTranspose(shape2, state2);
+   
+        nor(0) = (Tr.GetElement1IntPoint().x - 0.5) * 2.0;
+
+        flux1 = state2;
+        flux1 -= state1;
+        flux1 *= 0.5 * nor(0);
+
+        AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux1, el_dudx_mat1);
+        AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J2), shape2, flux1, el_dudx_mat2);
+    }
+}
+
+void DGSEMIntegrator::AssembleLiftingElementVector(const FiniteElement &el, ElementTransformation &Tr, const Vector &el_u, Vector &el_dudx, Vector &el_dudy, Vector &el_dudz)
+{
+    const int dof = el.GetDof();
+    el_dudx.SetSize(dof * num_equations);
+    el_dudy.SetSize(dof * num_equations);
+    el_dudz.SetSize(dof * num_equations);
+    el_dudx = 0.0;
+    el_dudy = 0.0;
+    el_dudz = 0.0;
+
+    const DenseMatrix el_u_mat(el_u.GetData(), dof, num_equations);
+    DenseMatrix el_dudx_mat(el_dudx.GetData(), dof, num_equations);
+    DenseMatrix el_dudy_mat(el_dudy.GetData(), dof, num_equations);
+    DenseMatrix el_dudz_mat(el_dudz.GetData(), dof, num_equations);
+
+    for (int k = 0; k < Np_z; k++)
+    {
+        for (int j = 0; j < Np_y; j++)
+        {
+            for (int i = 0; i < Np_x; i++)
+            {
+                id1 = k * Np_y * Np_x + j * Np_x + i;
+                const IntegrationPoint &ip1 = ir_vol->IntPoint(id1);
+                Tr.SetIntPoint(&ip1);
+                J = Tr.Weight();
+                adj1 = Tr.AdjugateJacobian();
+
+                grad_mat1 = 0.0;
+                grad_mat1.GetColumnReference(0, grad_xi);
+                grad_mat1.GetColumnReference(1, grad_eta);
+                grad_mat1.GetColumnReference(2, grad_zeta);
+
+                for (int l = 0; l < Np_x; l++)
+                {
+                    el_u_mat.GetRow(k * Np_y * Np_x + j * Np_x + l, state1);
+                    state1 *= D(l, i);
+                    grad_xi += state1;
+
+                    el_u_mat.GetRow(k * Np_y * Np_x + l * Np_x + i, state1);
+                    state1 *= D(l, j);
+                    grad_eta += state1;
+
+                    el_u_mat.GetRow(l * Np_y * Np_x + j * Np_x + i, state1);
+                    state1 *= D(l, k);
+                    grad_zeta += state1;
+                }
+
+                mfem::Mult(grad_mat1, adj1, grad_mat2);
+
+                grad_mat2.GetColumn(0, grad_state);
+                grad_state /= J;
+                el_dudx_mat.SetRow(id1, grad_state);
+
+                grad_mat2.GetColumn(1, grad_state);
+                grad_state /= J;
+                el_dudy_mat.SetRow(id1, grad_state);
+
+                grad_mat2.GetColumn(2, grad_state);
+                grad_state /= J;
+                el_dudz_mat.SetRow(id1, grad_state);
+            }
+        }
+    }
+}
+
+void DGSEMIntegrator::AssembleLiftingElementVector(const FiniteElement &el, ElementTransformation &Tr, const Vector &el_u, Vector &el_dudx, Vector &el_dudy)
+{
+    const int dof = el.GetDof();
+    el_dudx.SetSize(dof * num_equations);
+    el_dudy.SetSize(dof * num_equations);
+
+    el_dudx = 0.0;
+    el_dudy = 0.0;
+
+    const DenseMatrix el_u_mat(el_u.GetData(), dof, num_equations);
+    DenseMatrix el_dudx_mat(el_dudx.GetData(), dof, num_equations);
+    DenseMatrix el_dudy_mat(el_dudy.GetData(), dof, num_equations);
+
+    grad_mat1.GetColumnReference(0, grad_xi);
+    grad_mat1.GetColumnReference(1, grad_eta);
+
+    for (int j = 0; j < Np_y; j++)
+    {
+        for (int i = 0; i < Np_x; i++)
+        {
+            id1 = j * Np_x + i;
+            const IntegrationPoint &ip1 = ir_vol->IntPoint(id1);
+            Tr.SetIntPoint(&ip1);
+            J = Tr.Weight();
+            adj1 = Tr.AdjugateJacobian();
+
+            grad_mat1 = 0.0;
+
+            for (int l = 0; l < Np_x; l++)
+            {
+                el_u_mat.GetRow(j * Np_x + l, state1);
+                state1 *= D(l, i);
+                grad_xi += state1;
+
+                el_u_mat.GetRow(l * Np_x + i, state1);
+                state1 *= D(l, j);
+                grad_eta += state1;
+            }
+
+            mfem::Mult(grad_mat1, adj1, grad_mat2);
+
+            grad_mat2.GetColumn(0, grad_state);
+            grad_state /= J;
+            el_dudx_mat.SetRow(id1, grad_state);
+
+            grad_mat2.GetColumn(1, grad_state);
+            grad_state /= J;
+            el_dudy_mat.SetRow(id1, grad_state);
+        }
+    }
+}
+
+void DGSEMIntegrator::AssembleLiftingElementVector(const FiniteElement &el, ElementTransformation &Tr, const Vector &el_u, Vector &el_dudx)
+{
+    const int dof = el.GetDof();
+    el_dudx.SetSize(dof * num_equations);
+
+    el_dudx = 0.0;
+
+    const DenseMatrix el_u_mat(el_u.GetData(), dof, num_equations);
+    DenseMatrix el_dudx_mat(el_dudx.GetData(), dof, num_equations);
+
+    for (int i = 0; i < Np_x; i++)
+    {
+        const IntegrationPoint &ip1 = ir_vol->IntPoint(i);
+        Tr.SetIntPoint(&ip1);
+        J = Tr.Weight();
+        adj1 = Tr.AdjugateJacobian();
+
+        grad_mat1 = 0.0;
+        grad_mat1.GetColumnReference(0, grad_xi);
+
+        for (int l = 0; l < Np_x; l++)
+        {
+            el_u_mat.GetRow(l, state1);
+            state1 *= D(l, i);
+            grad_xi += state1;
+        }
+
+        mfem::Mult(grad_mat1, adj1, grad_mat2);
+
+        grad_mat2.GetColumn(0, grad_state);
+        grad_state /= J;
+        el_dudx_mat.SetRow(i, grad_state);
+    }
+}
+
+void DGSEMIntegrator::ComputeFVFluxes(const DenseMatrix &vdof_mat, real_t alpha_val, ElementTransformation &Tr, DenseMatrix &elvect_mat)
 {
     for (int k = 0; k < Np_z; k++)
     {

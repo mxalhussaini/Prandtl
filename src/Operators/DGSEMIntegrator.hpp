@@ -66,12 +66,14 @@ private:
     Vector prim;
     int dir;
 
+    Vector grad_xi, grad_eta, grad_zeta;
+
     real_t lambda;
     real_t div, cv_dT_dx, cv_dT_dy, cv_dT_dz;
     DenseMatrix F_viscous, G_viscous, H_viscous;
 
     void ComputeSubcellMetrics();
-    void ComputeFVFluxes(const DenseMatrix &vdof_mat, const real_t &alpha_val, ElementTransformation &Tr, DenseMatrix &elvect_mat);
+    void ComputeFVFluxes(const DenseMatrix &vdof_mat, real_t alpha_val, ElementTransformation &Tr, DenseMatrix &elvect_mat);
 
 public:
     void SetMode(Mode op)
@@ -97,15 +99,25 @@ public:
                     std::shared_ptr<ParGridFunction> alpha,
                     NumericalFlux &rsolver, int Np);
 
-    void AssembleElementVector(const FiniteElement &el,
-                               ElementTransformation &Tr,
-                               const Vector &elfun, Vector &elvect) override;
-    void AssembleFaceVector(const FiniteElement &el1,
-                            const FiniteElement &el2,
-                            FaceElementTransformations &Tr,
-                            const Vector &elfun, Vector &elvect) override;
-    void AssembleElementMatrix2(const FiniteElement &trial_fe, const FiniteElement &test_fe,
-            ElementTransformation &Trans,  DenseMatrix &elmat) override; 
+    void AssembleFaceVector(const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &elfun, Vector &elvect) override;
+    void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr, const Vector &elfun, Vector &elvect) override;
+    void AssembleElementMatrix2(const FiniteElement &trial_fe, const FiniteElement &test_fe, ElementTransformation &Trans,  DenseMatrix &elmat) override; 
+    
+    void AssembleFaceVector(const FiniteElement &el, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, const Vector &el_dudx, const Vector &el_dudy, const Vector &el_dudz, Vector &el_dudt);
+    void AssembleFaceVector(const FiniteElement &el, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, const Vector &el_dudx, const Vector &el_dudy, Vector &el_dudt);
+    void AssembleFaceVector(const FiniteElement &el, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, const Vector &el_dudx, Vector &el_dudt);
+
+    void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr, const Vector &el_u, const Vector &el_dudx, const Vector &el_dudy, const Vector &el_dudz, Vector &el_dudt);
+    void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr, const Vector &el_u, const Vector &el_dudx, const Vector &el_dudy, Vector &el_dudt);
+    void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr, const Vector &el_u, const Vector &el_dudx, Vector &el_dudt);
+
+    void AssembleLiftingFaceVector(const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudx, Vector &el_dudy, Vector &el_dudz);
+    void AssembleLiftingFaceVector(const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudx, Vector &el_dudy);
+    void AssembleLiftingFaceVector(const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudx);
+    
+    void AssembleLiftingElementVector(const FiniteElement &el, ElementTransformation &Tr, const Vector &el_u, Vector &el_dudx, Vector &el_dudy, Vector &el_dudz);
+    void AssembleLiftingElementVector(const FiniteElement &el, ElementTransformation &Tr, const Vector &el_u, Vector &el_dudx, Vector &el_dudy);
+    void AssembleLiftingElementVector(const FiniteElement &el, ElementTransformation &Tr, const Vector &el_u, Vector &el_dudx);
     // ~DGSEMIntegrator() = default;
 };
 

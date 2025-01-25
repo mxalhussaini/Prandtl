@@ -27,7 +27,7 @@ DGSEMOperator::DGSEMOperator(std::shared_ptr<ParFiniteElementSpace> vfes_,
                              modalThreshold(0.5 * std::pow(10.0, -1.8 * std::pow(order, 0.25))),
                              alpha_max(alpha_max), alpha_min(alpha_min)
 {
-    nonlinearForm.reset(new ParNonlinearForm(vfes.get()));
+    nonlinearForm.reset(new DGSEMNonlinearForm(vfes.get()));
 #ifdef PARABOLIC
     nonlinearForm_Lifting.reset(new ParNonlinearForm(vfes.get()));
 #endif
@@ -98,95 +98,181 @@ void DGSEMOperator::ComputeGlobalEntropyVector(const Vector &x, Vector &y) const
     }
 }
 
-void DGSEMOperator::Mult(const Vector &x, Vector &y) const
+void DGSEMOperator::ComputeGlobalPrimitiveGradVector(const Vector &u, Vector &dudx) const
 {
-#ifdef PARABOLIC
-    ComputeGlobalEntropyVector(x, global_entropy);
-
-    integrator->ChooseDirection(0);
-    integrator->SetMode(DGSEMIntegrator::GRADIENT);
-
-    for (int b = 0; b < bfnfi.size(); b++)
-    {
-        bfnfi[b]->ChooseDirection(0);
-        bfnfi[b]->SetMode(BdrFaceIntegrator::GRADIENT);
-    }
-    nonlinearForm_Lifting->Mult(global_entropy, *grad_x);
-    grad_x->ExchangeFaceNbrData();
-
-    if (dim > 1)
-    {
-        integrator->ChooseDirection(1);
-        for (int b = 0; b < bfnfi.size(); b++)
-        {
-            bfnfi[b]->ChooseDirection(1);
-        }
-        nonlinearForm_Lifting->Mult(global_entropy, *grad_y);
-        grad_y->ExchangeFaceNbrData();
-
-        if (dim > 2)
-        {
-            integrator->ChooseDirection(2);
-            for (int b = 0; b < bfnfi.size(); b++)
-            {
-                bfnfi[b]->ChooseDirection(2);
-            }
-            nonlinearForm_Lifting->Mult(global_entropy, *grad_z);
-            grad_z->ExchangeFaceNbrData();
-        }
-    }
-    
     for (int el = 0; el < num_elements; el++)
     {
         ElementTransformation *Tr = vfes->GetElementTransformation(el);
         vfes->GetElementVDofs(el, vdof_indices);
-        global_entropy.GetSubVector(vdof_indices, ent_vdofs);
-        DenseMatrix ent_mat(ent_vdofs.GetData(), Ndofs, num_equations);
-        x.GetSubVector(vdof_indices, el_vdofs);
+        u.GetSubVector(vdof_indices, el_vdofs);
         DenseMatrix vdof_mat(el_vdofs.GetData(), Ndofs, num_equations);
 
-        mfem::Mult(grad_mats[el], ent_mat, grad_vdof_mats);
-
-        grad_x->GetSubVector(vdof_indices, grad_vdofs);
-        grad_mat1.UseExternalData(grad_vdofs.GetData(), Ndofs, num_equations);
-        grad_vdof_mats.GetSubMatrix(0, Ndofs, 0, num_equations, grad_mat2);
-        // grad_x->AddElementVector(vdof_indices, grad_mat2.GetData());
-        grad_mat1 += grad_mat2;
-        EntropyGrad2PrimGrad(vdof_mat, grad_mat1);
-        grad_x->SetSubVector(vdof_indices, grad_mat1.GetData());
-
-        if (dim > 1)
-        {
-            grad_y->GetSubVector(vdof_indices, grad_vdofs);
-            grad_mat1.UseExternalData(grad_vdofs.GetData(), Ndofs, num_equations);
-            grad_vdof_mats.GetSubMatrix(Ndofs, 2 * Ndofs, 0, num_equations, grad_mat2);
-            grad_mat1 += grad_mat2;
-            EntropyGrad2PrimGrad(vdof_mat, grad_mat1);
-            grad_y->SetSubVector(vdof_indices, grad_mat1.GetData());
-
-            if (dim > 2)
-            {
-                grad_z->GetSubVector(vdof_indices, grad_vdofs);
-                grad_mat1.UseExternalData(grad_vdofs.GetData(), Ndofs, num_equations);
-                grad_vdof_mats.GetSubMatrix(2 * Ndofs, 3 * Ndofs, 0, num_equations, grad_mat2);
-                grad_mat1 += grad_mat2;
-                EntropyGrad2PrimGrad(vdof_mat, grad_mat1);
-                grad_z->SetSubVector(vdof_indices, grad_mat1.GetData());
-            }
-        }
-        // vdof_mat.ClearExternalData();
-        grad_mat1.ClearExternalData();
-        // ent_mat.ClearExternalData();
+        dudx.GetSubVector(vdof_indices, grad_vdofs);
+        DenseMatrix grad_mat(grad_vdofs.GetData(), Ndofs, num_equations);
+        EntropyGrad2PrimGrad(vdof_mat, grad_mat);
+        dudx.SetSubVector(vdof_indices, grad_mat.GetData());
     }
-#endif
-    integrator->SetMode(DGSEMIntegrator::DIVERGENCE);
-    for (int b = 0; b < bfnfi.size(); b++)
+}
+
+void DGSEMOperator::ComputeGlobalPrimitiveGradVector(const Vector &u, Vector &dudx, Vector &dudy) const
+{
+    for (int el = 0; el < num_elements; el++)
     {
-        bfnfi[b]->SetMode(BdrFaceIntegrator::DIVERGENCE);
+        ElementTransformation *Tr = vfes->GetElementTransformation(el);
+        vfes->GetElementVDofs(el, vdof_indices);
+        u.GetSubVector(vdof_indices, el_vdofs);
+        DenseMatrix vdof_mat(el_vdofs.GetData(), Ndofs, num_equations);
+
+        dudx.GetSubVector(vdof_indices, grad_vdofs);
+        DenseMatrix grad_mat1(grad_vdofs.GetData(), Ndofs, num_equations);
+        EntropyGrad2PrimGrad(vdof_mat, grad_mat1);
+        dudx.SetSubVector(vdof_indices, grad_mat1.GetData());
+
+        dudy.GetSubVector(vdof_indices, grad_vdofs);
+        DenseMatrix grad_mat2(grad_vdofs.GetData(), Ndofs, num_equations);
+        EntropyGrad2PrimGrad(vdof_mat, grad_mat2);
+        dudy.SetSubVector(vdof_indices, grad_mat2.GetData());    
+        
     }
+}
+
+void DGSEMOperator::ComputeGlobalPrimitiveGradVector(const Vector &u, Vector &dudx, Vector &dudy, Vector &dudz) const
+{
+    for (int el = 0; el < num_elements; el++)
+    {
+        ElementTransformation *Tr = vfes->GetElementTransformation(el);
+        vfes->GetElementVDofs(el, vdof_indices);
+        u.GetSubVector(vdof_indices, el_vdofs);
+        DenseMatrix vdof_mat(el_vdofs.GetData(), Ndofs, num_equations);
+
+        dudx.GetSubVector(vdof_indices, grad_vdofs);
+        DenseMatrix grad_mat1(grad_vdofs.GetData(), Ndofs, num_equations);
+        EntropyGrad2PrimGrad(vdof_mat, grad_mat1);
+        dudx.SetSubVector(vdof_indices, grad_mat1.GetData());
+
+        dudy.GetSubVector(vdof_indices, grad_vdofs);
+        DenseMatrix grad_mat2(grad_vdofs.GetData(), Ndofs, num_equations);
+        EntropyGrad2PrimGrad(vdof_mat, grad_mat2);
+        dudy.SetSubVector(vdof_indices, grad_mat2.GetData());
+
+        dudz.GetSubVector(vdof_indices, grad_vdofs);
+        DenseMatrix grad_mat3(grad_vdofs.GetData(), Ndofs, num_equations);
+        EntropyGrad2PrimGrad(vdof_mat, grad_mat3);
+        dudy.SetSubVector(vdof_indices, grad_mat3.GetData());      
+    
+    }
+}
+
+void DGSEMOperator::Mult(const Vector &x, Vector &y) const
+{
+// #ifdef PARABOLIC
+//     ComputeGlobalEntropyVector(x, global_entropy);
+
+//     integrator->ChooseDirection(0);
+//     integrator->SetMode(DGSEMIntegrator::GRADIENT);
+
+//     for (int b = 0; b < bfnfi.size(); b++)
+//     {
+//         bfnfi[b]->ChooseDirection(0);
+//         bfnfi[b]->SetMode(BdrFaceIntegrator::GRADIENT);
+//     }
+//     nonlinearForm_Lifting->Mult(global_entropy, *grad_x);
+//     grad_x->ExchangeFaceNbrData();
+
+//     if (dim > 1)
+//     {
+//         integrator->ChooseDirection(1);
+//         for (int b = 0; b < bfnfi.size(); b++)
+//         {
+//             bfnfi[b]->ChooseDirection(1);
+//         }
+//         nonlinearForm_Lifting->Mult(global_entropy, *grad_y);
+//         grad_y->ExchangeFaceNbrData();
+
+//         if (dim > 2)
+//         {
+//             integrator->ChooseDirection(2);
+//             for (int b = 0; b < bfnfi.size(); b++)
+//             {
+//                 bfnfi[b]->ChooseDirection(2);
+//             }
+//             nonlinearForm_Lifting->Mult(global_entropy, *grad_z);
+//             grad_z->ExchangeFaceNbrData();
+//         }
+//     }
+    
+//     for (int el = 0; el < num_elements; el++)
+//     {
+//         ElementTransformation *Tr = vfes->GetElementTransformation(el);
+//         vfes->GetElementVDofs(el, vdof_indices);
+//         global_entropy.GetSubVector(vdof_indices, ent_vdofs);
+//         DenseMatrix ent_mat(ent_vdofs.GetData(), Ndofs, num_equations);
+//         x.GetSubVector(vdof_indices, el_vdofs);
+//         DenseMatrix vdof_mat(el_vdofs.GetData(), Ndofs, num_equations);
+
+//         mfem::Mult(grad_mats[el], ent_mat, grad_vdof_mats);
+
+//         grad_x->GetSubVector(vdof_indices, grad_vdofs);
+//         grad_mat1.UseExternalData(grad_vdofs.GetData(), Ndofs, num_equations);
+//         grad_vdof_mats.GetSubMatrix(0, Ndofs, 0, num_equations, grad_mat2);
+//         // grad_x->AddElementVector(vdof_indices, grad_mat2.GetData());
+//         grad_mat1 += grad_mat2;
+//         EntropyGrad2PrimGrad(vdof_mat, grad_mat1);
+//         grad_x->SetSubVector(vdof_indices, grad_mat1.GetData());
+
+//         if (dim > 1)
+//         {
+//             grad_y->GetSubVector(vdof_indices, grad_vdofs);
+//             grad_mat1.UseExternalData(grad_vdofs.GetData(), Ndofs, num_equations);
+//             grad_vdof_mats.GetSubMatrix(Ndofs, 2 * Ndofs, 0, num_equations, grad_mat2);
+//             grad_mat1 += grad_mat2;
+//             EntropyGrad2PrimGrad(vdof_mat, grad_mat1);
+//             grad_y->SetSubVector(vdof_indices, grad_mat1.GetData());
+
+//             if (dim > 2)
+//             {
+//                 grad_z->GetSubVector(vdof_indices, grad_vdofs);
+//                 grad_mat1.UseExternalData(grad_vdofs.GetData(), Ndofs, num_equations);
+//                 grad_vdof_mats.GetSubMatrix(2 * Ndofs, 3 * Ndofs, 0, num_equations, grad_mat2);
+//                 grad_mat1 += grad_mat2;
+//                 EntropyGrad2PrimGrad(vdof_mat, grad_mat1);
+//                 grad_z->SetSubVector(vdof_indices, grad_mat1.GetData());
+//             }
+//         }
+//         // vdof_mat.ClearExternalData();
+//         grad_mat1.ClearExternalData();
+//         // ent_mat.ClearExternalData();
+//     }
+// #endif
+//     integrator->SetMode(DGSEMIntegrator::DIVERGENCE);
+//     for (int b = 0; b < bfnfi.size(); b++)
+//     {
+//         bfnfi[b]->SetMode(BdrFaceIntegrator::DIVERGENCE);
+//     }
 
     ComputeBlendingCoefficient(x);
-    nonlinearForm->Mult(x, y);
+
+    ComputeGlobalEntropyVector(x, global_entropy);
+    if (dim == 1)
+    {
+        nonlinearForm->MultLifting(global_entropy, *grad_x);
+        ComputeGlobalPrimitiveGradVector(x, *grad_x);
+        nonlinearForm->Mult(x, *grad_x, y);
+    }
+    else if (dim == 2)
+    {
+        nonlinearForm->MultLifting(global_entropy, *grad_x, *grad_y);
+        ComputeGlobalPrimitiveGradVector(x, *grad_x, *grad_y);
+        nonlinearForm->Mult(x, *grad_x, *grad_y, y);
+    }
+    else
+    {
+        nonlinearForm->MultLifting(global_entropy, *grad_x, *grad_y, *grad_z);
+        ComputeGlobalPrimitiveGradVector(x, *grad_x, *grad_y, *grad_z);
+        nonlinearForm->Mult(x, *grad_x, *grad_y, *grad_z, y);
+    }
+
+    // nonlinearForm->Mult(x, y);
 
     max_char_speed = integrator->GetMaxCharSpeed();
     for (int b = 0; b < bfnfi.size(); b++)

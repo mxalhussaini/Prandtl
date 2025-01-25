@@ -40,13 +40,13 @@ int main (int argc, char* argv[])
     Hypre::Init();
 
     int order = 3;
-    real_t t_final = 100.0;
+    real_t t_final = 3.0;
     real_t dt = -0.01;
     real_t cfl = 1.0;
     real_t mu = 0.02;
     real_t Ma = 0.1;
     bool visualization = true;
-    int vis_steps = 100;
+    int vis_steps = 500;
     int precision = 15;
     std::cout.precision(precision);
 
@@ -184,7 +184,7 @@ int main (int argc, char* argv[])
     pressure += energy;
     pressure *= Prandtl::gammaM1;
 
-    ParaViewDataCollection *pd = new ParaViewDataCollection("LidDrivenCavity2", pmesh.get());
+    ParaViewDataCollection *pd = new ParaViewDataCollection("LidDrivenCavity", pmesh.get());
     pd->SetPrefixPath("ParaView");
     pd->RegisterField("density", &rho);
     pd->RegisterField("u", &vel_x);

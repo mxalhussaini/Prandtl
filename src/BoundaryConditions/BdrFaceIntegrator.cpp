@@ -151,4 +151,237 @@ void BdrFaceIntegrator::ComputeBdrFaceLiftingFlux(const Vector &state1, Vector &
    fluxN *= 0.5; 
 }
 
+void BdrFaceIntegrator::AssembleLiftingFaceVector(const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudx, Vector &el_dudy, Vector &el_dudz)
+{
+   const int dof1 = el1.GetDof();
+
+   shape1.SetSize(dof1);
+
+   el_dudx.SetSize(dof1 * num_equations);
+   el_dudy.SetSize(dof1 * num_equations);
+   el_dudz.SetSize(dof1 * num_equations);
+   el_dudx = 0.0;
+   el_dudy = 0.0;
+   el_dudz = 0.0;
+
+   const DenseMatrix el_u_mat1(el_u.GetData(), dof1, num_equations);
+   DenseMatrix el_dudx_mat1(el_dudx.GetData(), dof1, num_equations);
+   DenseMatrix el_dudy_mat1(el_dudy.GetData(), dof1, num_equations);
+   DenseMatrix el_dudz_mat1(el_dudz.GetData(), dof1, num_equations);
+
+   for (int i = 0; i < ir_face->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir_face->IntPoint(i);
+      Tr.SetAllIntPoints(&ip);
+      J1 = Tr.GetElement1Transformation().Weight();
+      el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+
+      el_u_mat1.MultTranspose(shape1, state1);
+
+      CalcOrtho(Tr.Jacobian(), nor);
+
+      ComputeBdrFaceLiftingFlux(state1, state2, flux1, Tr, ip);
+      flux_num = flux2 = flux1;
+
+      flux1 *= nor(0);
+      AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux1, el_dudx_mat1);
+
+      flux2 *= nor(1);
+      AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux2, el_dudy_mat1);
+
+      flux_num *= nor(2);
+      AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux_num, el_dudz_mat1);       
+   }
+}
+
+void BdrFaceIntegrator::AssembleLiftingFaceVector(const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudx, Vector &el_dudy)
+{
+   const int dof1 = el1.GetDof();
+
+   shape1.SetSize(dof1);
+
+   el_dudx.SetSize(dof1 * num_equations);
+   el_dudy.SetSize(dof1 * num_equations);
+   el_dudx = 0.0;
+   el_dudy = 0.0;
+
+   const DenseMatrix el_u_mat1(el_u.GetData(), dof1, num_equations);
+   DenseMatrix el_dudx_mat1(el_dudx.GetData(), dof1, num_equations);
+   DenseMatrix el_dudy_mat1(el_dudy.GetData(), dof1, num_equations);
+
+   for (int i = 0; i < ir_face->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir_face->IntPoint(i);
+      Tr.SetAllIntPoints(&ip);
+      J1 = Tr.GetElement1Transformation().Weight();
+      el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+
+      el_u_mat1.MultTranspose(shape1, state1);
+
+      CalcOrtho(Tr.Jacobian(), nor);
+
+      ComputeBdrFaceLiftingFlux(state1, state2, flux1, Tr, ip);
+      flux2 = flux1;
+
+      flux1 *= nor(0);
+      AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux1, el_dudx_mat1);
+
+      flux2 *= nor(1);
+      AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux2, el_dudy_mat1);      
+   }
+}
+
+void BdrFaceIntegrator::AssembleLiftingFaceVector(const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudx)
+{
+   const int dof1 = el1.GetDof();
+
+   shape1.SetSize(dof1);
+
+   el_dudx.SetSize(dof1 * num_equations);
+   el_dudx = 0.0;
+
+   const DenseMatrix el_u_mat1(el_u.GetData(), dof1, num_equations);
+   DenseMatrix el_dudx_mat1(el_dudx.GetData(), dof1, num_equations);
+
+   for (int i = 0; i < ir_face->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir_face->IntPoint(i);
+      Tr.SetAllIntPoints(&ip);
+      J1 = Tr.GetElement1Transformation().Weight();
+      el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+
+      el_u_mat1.MultTranspose(shape1, state1);
+
+      CalcOrtho(Tr.Jacobian(), nor);
+
+      ComputeBdrFaceLiftingFlux(state1, state2, flux1, Tr, ip);
+
+      flux1 *= nor(0);
+      AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux1, el_dudx_mat1);    
+   }
+}
+
+void BdrFaceIntegrator::AssembleFaceVector(const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, const Vector &el_dudx, const Vector &el_dudy, const Vector &el_dudz, Vector &el_dudt)
+{
+   const int dof1 = el1.GetDof();
+
+   shape1.SetSize(dof1);
+
+   el_dudt.SetSize(dof1 * num_equations);
+   el_dudt = 0.0;
+
+   const DenseMatrix el_u_mat1(el_u.GetData(), dof1, num_equations);
+   const DenseMatrix el_dudx_mat1(el_dudx.GetData(), dof1, num_equations);
+   const DenseMatrix el_dudy_mat1(el_dudy.GetData(), dof1, num_equations);
+   const DenseMatrix el_dudz_mat1(el_dudz.GetData(), dof1, num_equations);
+   DenseMatrix el_dudt_mat1(el_dudt.GetData(), dof1, num_equations);
+
+   for (int i = 0; i < ir_face->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir_face->IntPoint(i);
+      Tr.SetAllIntPoints(&ip);
+      J1 = Tr.GetElement1Transformation().Weight();
+      el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+
+      el_u_mat1.MultTranspose(shape1, state1);
+      el_dudx_mat1.MultTranspose(shape1, grad_state);
+      grad_mat1.SetCol(0, grad_state);
+      el_dudy_mat1.MultTranspose(shape1, grad_state);
+      grad_mat1.SetCol(1, grad_state);
+      el_dudz_mat1.MultTranspose(shape1, grad_state);
+      grad_mat1.SetCol(2, grad_state);
+
+      CalcOrtho(Tr.Jacobian(), nor);
+
+      speed = ComputeBdrFaceInviscidFlux(state1, state2, flux1, nor, Tr, ip);
+      flux1.Neg();
+
+      ComputeBdrFaceViscousFlux(state1, state2, grad_mat1, flux_num, nor, Tr, ip);
+      // add viscous eigenvalue estimates
+   
+      flux1 += flux_num;
+
+      AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux1, el_dudt_mat1);
+   }   
+}
+
+void BdrFaceIntegrator::AssembleFaceVector(const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, const Vector &el_dudx, const Vector &el_dudy, Vector &el_dudt)
+{
+   const int dof1 = el1.GetDof();
+
+   shape1.SetSize(dof1);
+
+   el_dudt.SetSize(dof1 * num_equations);
+   el_dudt = 0.0;
+
+   const DenseMatrix el_u_mat1(el_u.GetData(), dof1, num_equations);
+   const DenseMatrix el_dudx_mat1(el_dudx.GetData(), dof1, num_equations);
+   const DenseMatrix el_dudy_mat1(el_dudy.GetData(), dof1, num_equations);
+   DenseMatrix el_dudt_mat1(el_dudt.GetData(), dof1, num_equations);
+
+   for (int i = 0; i < ir_face->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir_face->IntPoint(i);
+      Tr.SetAllIntPoints(&ip);
+      J1 = Tr.GetElement1Transformation().Weight();
+      el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+
+      el_u_mat1.MultTranspose(shape1, state1);
+      el_dudx_mat1.MultTranspose(shape1, grad_state);
+      grad_mat1.SetCol(0, grad_state);
+      el_dudy_mat1.MultTranspose(shape1, grad_state);
+      grad_mat1.SetCol(1, grad_state);
+
+      CalcOrtho(Tr.Jacobian(), nor);
+
+      speed = ComputeBdrFaceInviscidFlux(state1, state2, flux1, nor, Tr, ip);
+      flux1.Neg();
+
+      ComputeBdrFaceViscousFlux(state1, state2, grad_mat1, flux_num, nor, Tr, ip);
+      // add viscous eigenvalue estimates
+   
+      flux1 += flux_num;
+
+      AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux1, el_dudt_mat1);
+   }   
+}
+
+void BdrFaceIntegrator::AssembleFaceVector(const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, const Vector &el_dudx, Vector &el_dudt)
+{
+   const int dof1 = el1.GetDof();
+
+   shape1.SetSize(dof1);
+
+   el_dudt.SetSize(dof1 * num_equations);
+   el_dudt = 0.0;
+
+   const DenseMatrix el_u_mat1(el_u.GetData(), dof1, num_equations);
+   const DenseMatrix el_dudx_mat1(el_dudx.GetData(), dof1, num_equations);
+   DenseMatrix el_dudt_mat1(el_dudt.GetData(), dof1, num_equations);
+
+   for (int i = 0; i < ir_face->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir_face->IntPoint(i);
+      Tr.SetAllIntPoints(&ip);
+      J1 = Tr.GetElement1Transformation().Weight();
+      el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+
+      el_u_mat1.MultTranspose(shape1, state1);
+      el_dudx_mat1.MultTranspose(shape1, grad_state);
+      grad_mat1.SetCol(0, grad_state);
+
+      CalcOrtho(Tr.Jacobian(), nor);
+
+      speed = ComputeBdrFaceInviscidFlux(state1, state2, flux1, nor, Tr, ip);
+      flux1.Neg();
+
+      ComputeBdrFaceViscousFlux(state1, state2, grad_mat1, flux_num, nor, Tr, ip);
+      // add viscous eigenvalue estimates
+   
+      flux1 += flux_num;
+
+      AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, flux1, el_dudt_mat1);
+   }   
+}
+
 }

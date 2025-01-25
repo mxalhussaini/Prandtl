@@ -54,6 +54,7 @@ target_sources(${PROJECT_NAME}
     PRIVATE src/Indicators/Indicator.cpp
     PRIVATE src/Indicators/PerssonPeraireIndicator.cpp
     PRIVATE src/Simulation/Simulation.cpp
+    PRIVATE src/NonlinearForm/DGSEMNonlinearForm.cpp
     )
 
 # add_subdirectory(${CMAKE_SOURCE_DIR}/libs/mfem-4.7)
@@ -79,6 +80,7 @@ target_include_directories(${PROJECT_NAME}
     PUBLIC ${CMAKE_SOURCE_DIR}/src/Simulation
     PUBLIC ${CMAKE_SOURCE_DIR}/src/Include
     PUBLIC ${CMAKE_SOURCE_DIR}/src/Fluxes
+    PUBLIC ${CMAKE_SOURCE_DIR}/src/NonlinearForm
     )
 
 target_link_directories(${PROJECT_NAME}

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "DGSEMIntegrator.hpp"
+#include "DGSEMNonlinearForm.hpp"
 #include "BdrFaceIntegrator.hpp"
 #include "ModalBasis.hpp"
 #include "Indicator.hpp"
@@ -22,7 +23,7 @@ private:
     std::shared_ptr<ParGridFunction> grad_x, grad_y, grad_z;
     std::unique_ptr<DGSEMIntegrator> integrator;
     std::unique_ptr<Indicator> indicator;
-    std::unique_ptr<ParNonlinearForm> nonlinearForm;
+    std::unique_ptr<DGSEMNonlinearForm> nonlinearForm;
 
     mutable Array<int> vdof_indices;
     mutable Vector el_vdofs, ent_vdofs, grad_vdofs;
@@ -52,6 +53,9 @@ private:
     mutable real_t alpha_dof;
     
     void ComputeGlobalEntropyVector(const Vector &x, Vector &y) const;
+    void ComputeGlobalPrimitiveGradVector(const Vector &u, Vector &dudx) const;
+    void ComputeGlobalPrimitiveGradVector(const Vector &u, Vector &dudx, Vector &dudy) const;
+    void ComputeGlobalPrimitiveGradVector(const Vector &u, Vector &dudx, Vector &dudy, Vector &dudz) const;
     void ComputeBlendingCoefficient(const Vector &x) const;
 
 public:
