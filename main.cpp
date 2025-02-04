@@ -2,6 +2,7 @@
 
 using namespace mfem;
 
+std::function<void(const Vector&, Vector&)> Cylinder(real_t Ma, real_t Re, real_t gamma, real_t mu, real_t D);
 std::function<void(const Vector&, Vector&)> LidDrivenCavityIC(real_t Ma, real_t gamma);
 std::function<real_t(const Vector&)> LidDrivenCavityAdiaBC();
 std::function<void(const Vector&, Vector &)> LidDrivenCavityVelBC();
@@ -45,8 +46,10 @@ int main (int argc, char* argv[])
     real_t cfl = 1.0;
     real_t mu = 0.02;
     real_t Ma = 0.1;
+    real_t Re = 40.0;
     bool visualization = true;
-    int vis_steps = 500;
+    int vis_steps = 2000;
+    int nancheck_steps = 100;
     int precision = 15;
     std::cout.precision(precision);
 
@@ -57,10 +60,11 @@ int main (int argc, char* argv[])
     // std::string filename = "../../periodic-square.mesh";
     // std::string filename = "../../SupercriticalAirfoilQuad.msh";
     // std::string filename = "../../CompressionRamp.msh";
-    // Mesh *mesh = new Mesh(filename);
-    Mesh *mesh = new Mesh();
+    std::string filename = "../../cylinder.msh";
+    Mesh *mesh = new Mesh(filename);
+    // Mesh *mesh = new Mesh();
     // *mesh = Mesh::MakeCartesian1D(400, 1.0);
-    *mesh = Mesh::MakeCartesian2D(16, 16, Element::QUADRILATERAL, false, 2, 2, true);
+    // *mesh = Mesh::MakeCartesian2D(16, 16, Element::QUADRILATERAL, false, 2, 2, true);
     // *mesh = Mesh::MakeCartesian2D(384, 96, Element::QUADRILATERAL, false, 4.0, 1.0, true);
     // *mesh = Mesh::MakeCartesian2D(512, 384, Element::QUADRILATERAL, false, 4.0, 3.0, true);
 
@@ -71,6 +75,12 @@ int main (int argc, char* argv[])
     if (dim > 1) mesh->EnsureNCMesh();
     std::shared_ptr<ParMesh> pmesh = std::make_shared<ParMesh>(MPI_COMM_WORLD, *mesh);
     mesh->Clear();
+
+    // if (Mpi::Root())
+    // {
+    //     pmesh->bdr_attributes.Print(std::cout);
+    //     pmesh->bdr_attribute_sets.Print(std::cout);
+    // }
 
     // for (int k = 0; k < pmesh->GetNBE(); k++)
     // {
@@ -91,7 +101,7 @@ int main (int argc, char* argv[])
     // }
     // pmesh->SetAttributes();
 
-    // pmesh->PrintBdrVTU("pmesh_bdr");
+    // pmesh->PrintBdrVTU("cylinder_pmesh_bdr");
 
     for (int lev = 0; lev < 0; lev++)
     {
@@ -110,7 +120,8 @@ int main (int argc, char* argv[])
         std::cout << "Number of unknowns: " << vfes->GetVSize() << std::endl;
     }
     
-    VectorFunctionCoefficient u0(num_equations, LidDrivenCavityIC(Ma, Prandtl::gamma));
+    // VectorFunctionCoefficient u0(num_equations, LidDrivenCavityIC(Ma, Prandtl::gamma));
+    VectorFunctionCoefficient u0(num_equations, Cylinder(Ma, Re, Prandtl::gamma, mu, 2.0));
 
     std::shared_ptr<ParGridFunction> sol = std::make_shared<ParGridFunction>(vfes.get());
     sol->ProjectCoefficient(u0);
@@ -138,17 +149,29 @@ int main (int argc, char* argv[])
 
     // const IntegrationRule *ir_face = &GLIntRules.Get(Geometry::SEGMENT, 2 * order - 1);
 
+    // VectorFunctionCoefficient vn(dim, LidDrivenCavityVelBC());
+    // VectorFunctionCoefficient vlid(dim, LidDrivenCavityVelLidBC());
+    // FunctionCoefficient qn(LidDrivenCavityAdiaBC());
+    // Array<int> walls(pmesh->bdr_attributes.Size());
+    // walls = 1; walls[2] = 0;
+    // Array<int> lid(pmesh->bdr_attributes.Size());
+    // lid = 0; lid[2] = 1;
+    // NS.AddBdrFaceIntegrator(new Prandtl::NoSlipAdiabWallBdrFaceIntegrator(numericalFlux, order + 1,
+    //     grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), qn, vn), walls);
+    // NS.AddBdrFaceIntegrator(new Prandtl::NoSlipAdiabWallBdrFaceIntegrator(numericalFlux, order + 1,
+    //     grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), qn, vlid), lid);
+
     VectorFunctionCoefficient vn(dim, LidDrivenCavityVelBC());
-    VectorFunctionCoefficient vlid(dim, LidDrivenCavityVelLidBC());
     FunctionCoefficient qn(LidDrivenCavityAdiaBC());
-    Array<int> walls(pmesh->bdr_attributes.Size());
-    walls = 1; walls[2] = 0;
-    Array<int> lid(pmesh->bdr_attributes.Size());
-    lid = 0; lid[2] = 1;
+    Array<int> box(pmesh->bdr_attributes.Size());
+    box = 1; box[pmesh->bdr_attributes.Size() - 1] = 0;
+    Array<int> circle(pmesh->bdr_attributes.Size());
+    circle = 0; circle[pmesh->bdr_attributes.Size() - 1] = 1;
     NS.AddBdrFaceIntegrator(new Prandtl::NoSlipAdiabWallBdrFaceIntegrator(numericalFlux, order + 1,
-        grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), qn, vn), walls);
-    NS.AddBdrFaceIntegrator(new Prandtl::NoSlipAdiabWallBdrFaceIntegrator(numericalFlux, order + 1,
-        grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), qn, vlid), lid);
+        grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), qn, vn), circle);
+    NS.AddBdrFaceIntegrator(new Prandtl::SpecifiedStateBdrFaceIntegrator(numericalFlux, order + 1,
+        grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), u0), box);
+    
 
     ParGridFunction rho, mom, energy;
     rho.MakeRef(fes, *sol, 0);
@@ -241,24 +264,24 @@ int main (int argc, char* argv[])
 
 
     real_t hmin = infinity();
-    if (cfl > 0)
-    {
+    // if (cfl > 0)
+    // {
         // for (int i = 0; i < pmesh->GetNE(); i++)
         // {
         //     hmin = std::min(pmesh->GetElementSize(i, 1), hmin);
         // }
         // MPI_Allreduce(MPI_IN_PLACE, &hmin, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN, pmesh->GetComm());
 
-        Vector z(sol->Size());
-        NS.Mult(*sol, z);
+        // Vector z(sol->Size());
+        // NS.Mult(*sol, z);
         // real_t max_char_speed = NS.GetMaxCharSpeed();
         // MPI_Allreduce(MPI_IN_PLACE, &max_char_speed, 1,  MPITypeMap<real_t>::mpi_type,
         //             MPI_MAX,
         //             pmesh->GetComm());
         // dt = cfl * hmin / (max_char_speed * std::pow(order + 1, 2));
-    }
+    // }
 
-    dt = 1e-4;
+    dt = 1e-6;
 
     tic_toc.Clear();
     tic_toc.Start();
@@ -269,7 +292,7 @@ int main (int argc, char* argv[])
     ode_solver->Init(NS);
 
     bool done = false;
-    for (int ti = 0; !done;)
+    for (int ti = 0; done;)
     {
         real_t dt_real = std::min(dt, t_final - t);
 
@@ -285,6 +308,16 @@ int main (int argc, char* argv[])
         ti++;
 
         done = (t >= t_final - 1e-8 * dt);
+        if (done || ti % nancheck_steps == 0)
+        {
+            for (auto el: *sol)
+            {
+                if (std::isnan(el) || std::isinf(el))
+                {
+                    MFEM_ABORT("nan/inf encountered");
+                }
+            }
+        }
         if (done || ti % vis_steps == 0)
         {
             vel = mom;
@@ -337,15 +370,29 @@ int main (int argc, char* argv[])
         std::cout << " done, " << tic_toc.RealTime() << "s." << std::endl;
     }
 
-    const real_t error = sol->ComputeLpError(2, u0);
-    if (Mpi::Root())
-    {
-        std::cout << "Solution error: " << error << std::endl;
-    }
+    // const real_t error = sol->ComputeLpError(2, u0);
+    // if (Mpi::Root())
+    // {
+    //     std::cout << "Solution error: " << error << std::endl;
+    // }
 
     delete ode_solver;
     
     return 0;
+}
+
+std::function<void(const Vector&, Vector&)> Cylinder(real_t Ma, real_t Re, real_t gamma, real_t mu, real_t D)
+{
+    return [Ma, Re, gamma, mu, D] (const Vector&x, Vector&y)
+    {
+        real_t rho = 1.0;
+        real_t u = Re * mu / (D * rho);
+        real_t p = rho * u * u / (gamma * Ma * Ma);
+        y(0) = rho;
+        y(1) = rho * u;
+        y(2) = 0.0;
+        y(3) = p / (gamma - 1.0) + 0.5 * rho * u * u;
+    };
 }
 
 std::function<void(const Vector&, Vector&)> Sod1D(real_t gamma)

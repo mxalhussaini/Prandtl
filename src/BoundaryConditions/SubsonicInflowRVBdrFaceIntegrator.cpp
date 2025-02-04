@@ -60,7 +60,7 @@ void SubsonicInflowRVBdrFaceIntegrator::ComputeOuterInviscidState(const Vector &
         }
     }
     dke *= 0.5 / state1(0);
-    dke += 0.5 * (u * u) / r;
+    dke += 0.5 * (u * u) * r;
     state2(num_equations - 1) += dke;
 }
 

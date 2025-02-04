@@ -20,7 +20,7 @@
 #include "NoSlipIsothWallBdrFaceIntegrator.hpp"
 #include "SubsonicInflowRVBdrFaceIntegrator.hpp"
 #include "SubsonicInflowPtTtAngBdrFaceIntegrator.hpp"
-#include "SubsonicOutFlowPBdrFaceIntegrator.hpp"
+#include "SubsonicOutflowPBdrFaceIntegrator.hpp"
 #include "SpecifiedStateBdrFaceIntegrator.hpp"
 #include "SupersonicInflowBdrFaceIntegrator.hpp"
 #include "SupersonicOutflowBdrFaceIntegrator.hpp"

@@ -1523,7 +1523,8 @@ void DGSEMIntegrator::ComputeSubcellMetrics()
                     nor2 = nor1;
                     for (int l = 0; l < i; l++)
                     {
-                        D.GetRow(l, Dx);
+                        // D.GetRow(l, Dx);
+                        D.GetColumn(l, Dx);
                         tmp = 0.0;
                         real_t weight = ir->IntPoint(l).weight;
                         for (int m = 0; m < Np_x; m++)
@@ -1558,7 +1559,8 @@ void DGSEMIntegrator::ComputeSubcellMetrics()
                         nor2 = nor1;
                         for (int l = 0; l < j; l++)
                         {
-                            D.GetRow(l, Dx);
+                            // D.GetRow(l, Dx);
+                            D.GetColumn(l, Dx);
                             tmp = 0.0;
                             real_t weight = ir->IntPoint(l).weight;
                             for (int m = 0; m < Np_y; m++)
@@ -1593,7 +1595,8 @@ void DGSEMIntegrator::ComputeSubcellMetrics()
                             nor2 = nor1;
                             for (int l = 0; l < k; l++)
                             {
-                                D.GetRow(l, Dx);
+                                // D.GetRow(l, Dx);
+                                D.GetColumn(l, Dx);
                                 tmp = 0.0;
                                 real_t weight = ir->IntPoint(l).weight;
                                 for (int m = 0; m < Np_z; m++)
