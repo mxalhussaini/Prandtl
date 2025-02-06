@@ -17,7 +17,7 @@ public:
     SubsonicOutflowPBdrFaceIntegrator(const NumericalFlux &rsolver, const int Np,
                                       std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
                                       std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,
-                                      const real_t &time, FunctionCoefficient &p_out, bool t_dependent = false);
+                                      const real_t &time, FunctionCoefficient &p_fun, bool t_dependent = false);
     SubsonicOutflowPBdrFaceIntegrator(const NumericalFlux &rsolver, const int Np,
                                       std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
                                       std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,

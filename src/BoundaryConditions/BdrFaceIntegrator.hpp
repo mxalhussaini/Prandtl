@@ -101,7 +101,4 @@ public:
    void AssembleLiftingFaceVector(const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudx);
 };
 
-
-// overload derived BdrFaceIntegrator constructors for constant and zero states and remove bool t_dependent and bool constant
-// add base ComputeBdrFaceViscousFlux()
 }

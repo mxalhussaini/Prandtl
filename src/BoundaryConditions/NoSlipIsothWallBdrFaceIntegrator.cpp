@@ -9,30 +9,19 @@ NoSlipIsothWallBdrFaceIntegrator::NoSlipIsothWallBdrFaceIntegrator(
     std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
     std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,
     const real_t &time, FunctionCoefficient &T_wall_, VectorFunctionCoefficient &V_wall_,
-    bool constant, bool t_dependent)
-    : SlipWallBdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, constant, t_dependent),
-    T_wall(T_wall_), V_wall(V_wall_)
+    bool t_dependent)
+    : SlipWallBdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, false, t_dependent),
+    T_wall(T_wall_), V_wall(V_wall_) {}
+
+NoSlipIsothWallBdrFaceIntegrator::NoSlipIsothWallBdrFaceIntegrator(
+    const NumericalFlux &rsolver, const int Np,
+    std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
+    std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,
+    const real_t &time, real_t &T, const Vector &V)
+    : SlipWallBdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, true, false),
+    T(T), V(V), T_wall(std::function<real_t(const Vector&)>()), V_wall(dim, std::function<void(const Vector&, Vector&)>())
 {
-    V.SetSize(dim);
-    if (!t_dependent)
-    {
-        T_wall.SetTime(time);
-        V_wall.SetTime(time);
-        ElementTransformation *Tr = vfes->GetElementTransformation(0);
-        IntegrationPoint ip;
-        ip.x = 0.0;
-        if (dim > 1)
-        {
-            ip.y = 0.0;
-            if (dim > 2)
-            {
-                ip.z = 0.0;
-            }
-        }
-        T = T_wall.Eval(*Tr, ip);
-        V_wall.Eval(V, *Tr, ip);
-        v = 1.0 / (R_gas * T);
-    }
+    v = 1.0 / (R_gas * T);
 }
 
 void NoSlipIsothWallBdrFaceIntegrator::ComputeBdrFaceViscousFlux(const Vector &state1, const Vector &state2, const DenseMatrix &grad_mat1,
@@ -44,7 +33,7 @@ void NoSlipIsothWallBdrFaceIntegrator::ComputeBdrFaceViscousFlux(const Vector &s
 
 void NoSlipIsothWallBdrFaceIntegrator::ComputeBdrFaceLiftingFlux(const Vector &state1, Vector &state2, Vector &fluxN, FaceElementTransformations &Tr, const IntegrationPoint &ip)
 {
-    if (t_dependent)
+    if (!constant)
     {
         T_wall.SetTime(time);
         V_wall.SetTime(time);

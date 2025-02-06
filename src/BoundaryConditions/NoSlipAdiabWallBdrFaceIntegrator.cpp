@@ -8,35 +8,23 @@ NoSlipAdiabWallBdrFaceIntegrator::NoSlipAdiabWallBdrFaceIntegrator(
     std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
     std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,
     const real_t &time, FunctionCoefficient &qn_wall_, VectorFunctionCoefficient &V_wall_,
-    bool constant, bool t_dependent)
-    : SlipWallBdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, constant, t_dependent),
-    qn_wall(qn_wall_), V_wall(V_wall_)
-{
-    V.SetSize(dim);
-    if (!t_dependent)
-    {
-        qn_wall.SetTime(time);
-        V_wall.SetTime(time);
-        ElementTransformation *Tr = vfes->GetElementTransformation(0);
-        IntegrationPoint ip;
-        ip.x = 0.0;
-        if (dim > 1)
-        {
-            ip.y = 0.0;
-            if (dim > 2)
-            {
-                ip.z = 0.0;
-            }
-        }
-        qn = qn_wall.Eval(*Tr, ip);
-        V_wall.Eval(V, *Tr, ip);
-    }
-}
+    bool t_dependent)
+    : SlipWallBdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, false, t_dependent),
+    qn_wall(qn_wall_), V_wall(V_wall_) {}
+
+NoSlipAdiabWallBdrFaceIntegrator::NoSlipAdiabWallBdrFaceIntegrator(
+    const NumericalFlux &rsolver, const int Np,
+    std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
+    std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,
+    const real_t &time, real_t qn, const Vector &V)
+    : SlipWallBdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, true, false),
+    qn(qn), V(V),
+    qn_wall(std::function<real_t(const Vector&)>()), V_wall(dim, std::function<void(const Vector &, Vector&)>()) {}
 
 void NoSlipAdiabWallBdrFaceIntegrator::ComputeBdrFaceViscousFlux(const Vector &state1, const Vector &state2, const DenseMatrix &grad_mat1,
         Vector &fluxN, const Vector &nor, FaceElementTransformations &Tr, const IntegrationPoint &ip)
 {
-    if (t_dependent)
+    if (!constant)
     {
         qn_wall.SetTime(time);
         V_wall.SetTime(time);
@@ -62,7 +50,7 @@ void NoSlipAdiabWallBdrFaceIntegrator::ComputeBdrFaceViscousFlux(const Vector &s
 
 void NoSlipAdiabWallBdrFaceIntegrator::ComputeBdrFaceLiftingFlux(const Vector &state1, Vector &state2, Vector &fluxN, FaceElementTransformations &Tr, const IntegrationPoint &ip)
 {
-    if (t_dependent)
+    if (!constant)
     {
         V_wall.SetTime(time);
         V_wall.Eval(V, Tr, ip);        

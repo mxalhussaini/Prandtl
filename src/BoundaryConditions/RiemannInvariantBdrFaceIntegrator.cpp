@@ -4,40 +4,45 @@
 
 namespace Prandtl
 {
-
+// Constructor for RiemannInvariantBdrFaceIntegrator with a variable (space- and/or time-dependent) primitive state
 RiemannInvariantBdrFaceIntegrator::RiemannInvariantBdrFaceIntegrator(
     const NumericalFlux &rsolver, const int Np,
     std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
     std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,
-    const real_t &time, FunctionCoefficient &rho_out_, FunctionCoefficient &p_out_,
-    VectorFunctionCoefficient &V_out_, bool constant, bool t_dependent)
-    : BdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, constant, t_dependent),
-    rho_out(rho_out_), p_out(p_out_), V_out(V_out_)
+    const real_t &time, VectorFunctionCoefficient &prim_state_fun, bool t_dependent)
+    : BdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, false, t_dependent),
+    prim_state_fun(prim_state_fun)
+{
+    unit_nor.SetSize(dim);
+    V_o.SetSize(dim);
+    prim_state.SetSize(num_equations);
+}
+
+// Constructor for RiemannInvariantBdrFaceIntegrator with a constant primitive state
+RiemannInvariantBdrFaceIntegrator::RiemannInvariantBdrFaceIntegrator(
+    const NumericalFlux &rsolver, const int Np,
+    std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
+    std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,
+    const real_t &time, const Vector &prim_state)
+    : BdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, true, false),
+    prim_state_fun(num_equations, std::function<void(const Vector&, Vector&)>())
 {
     unit_nor.SetSize(dim);
     V_o.SetSize(dim);
 
-    if (constant)
+    rho_o = prim_state(0);
+    p_o = prim_state(num_equations - 1);
+    V_o(0) = prim_state(1);
+    if (dim > 1)
     {
-        rho_out.SetTime(time);
-        p_out.SetTime(time);
-        V_out.SetTime(time);
-        ElementTransformation *Tr = vfes->GetElementTransformation(0);
-        IntegrationPoint ip;
-        ip.x = 0.0;
-        if (dim > 1)
+        V_o(1) = prim_state(2);
+        if (dim > 2)
         {
-            ip.y = 0.0;
-            if (dim > 2)
-            {
-                ip.z = 0.0;
-            }
+            V_o(2) = prim_state(3);
         }
-        rho_o = rho_out.Eval(*Tr, ip);
-        p_o = p_out.Eval(*Tr, ip);
-        V_out.Eval(V_o, *Tr, ip);        
     }
 }
+
 
 void RiemannInvariantBdrFaceIntegrator::ComputeOuterInviscidState(const Vector &state1, Vector &state2,
     FaceElementTransformations &Tr, const IntegrationPoint &ip)
@@ -49,13 +54,21 @@ void RiemannInvariantBdrFaceIntegrator::ComputeOuterInviscidState(const Vector &
     {
         if (t_dependent)
         {
-            rho_out.SetTime(time);
-            p_out.SetTime(time);
-            V_out.SetTime(time);
+            prim_state_fun.SetTime(time);
         }
-        rho_o = rho_out.Eval(Tr, ip);
-        p_o = p_out.Eval(Tr, ip);
-        V_out.Eval(V_o, Tr, ip);  
+  
+        prim_state_fun.Eval(prim_state, Tr, ip);
+        rho_o = prim_state(0);
+        p_o = prim_state(num_equations - 1);
+        V_o(0) = prim_state(1);
+        if (dim > 1)
+        {
+            V_o(1) = prim_state(2);
+            if (dim > 2)
+            {
+                V_o(2) = prim_state(3);
+            }
+        }
     }
 
     Vector V_i(state1.GetData() + 1, dim);

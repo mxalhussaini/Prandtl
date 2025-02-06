@@ -9,37 +9,43 @@ SubsonicInflowPtTtAngBdrFaceIntegrator::SubsonicInflowPtTtAngBdrFaceIntegrator(
     const NumericalFlux &rsolver, const int Np,
     std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
     std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,
-    const real_t &time, FunctionCoefficient &p_total_, FunctionCoefficient &T_total_,
-    real_t theta, real_t phi, bool constant, bool t_dependent)
-    : BdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, constant, t_dependent),
-    p_total(p_total_), T_total(T_total_), theta(theta), phi(phi)
+    const real_t &time, FunctionCoefficient &pt, FunctionCoefficient &Tt,
+    real_t theta, real_t phi, bool t_dependent)
+    : BdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, false, t_dependent),
+    pt(pt), Tt(Tt), theta(theta), phi(phi)
 {
     V_comps.SetSize(dim);
-
-    if (constant)
-    {
-        p_total.SetTime(time);
-        T_total.SetTime(time);
-        ElementTransformation *Tr = vfes->GetElementTransformation(0);
-        IntegrationPoint ip;
-        ip.x = 0.0;
-        if (dim > 1)
-        {
-            ip.y = 0.0;
-            if (dim > 2)
-            {
-                ip.z = 0.0;
-            }
-        }
-        p0 = p_total.Eval(*Tr, ip);
-        T0 = T_total.Eval(*Tr, ip);
-    }
 
     if (dim > 1)
     {
         V_comps(0) = std::cos(theta * M_PI / 180.0);
         V_comps(1) = std::sin(theta * M_PI / 180.0);
-        if (dim == 3)
+        if (dim > 2)
+        {
+            V_comps(0) *= std::sin(phi * M_PI / 180.0);
+            V_comps(1) *= std::sin(phi * M_PI / 180.0);
+            V_comps(3) = std::cos(phi * M_PI / 180.0);
+        }
+    }
+}
+
+SubsonicInflowPtTtAngBdrFaceIntegrator::SubsonicInflowPtTtAngBdrFaceIntegrator(
+    const NumericalFlux &rsolver, const int Np,
+    std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
+    std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,
+    const real_t &time, real_t pt, real_t Tt,
+    real_t theta, real_t phi)
+    : BdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, true, false),
+    p0(pt), T0(Tt), theta(theta), phi(phi),
+    pt(std::function<real_t(const Vector&)>()), Tt(std::function<real_t(const Vector&)>())
+{
+    V_comps.SetSize(dim);
+
+    if (dim > 1)
+    {
+        V_comps(0) = std::cos(theta * M_PI / 180.0);
+        V_comps(1) = std::sin(theta * M_PI / 180.0);
+        if (dim > 2)
         {
             V_comps(0) *= std::sin(phi * M_PI / 180.0);
             V_comps(1) *= std::sin(phi * M_PI / 180.0);
@@ -54,11 +60,11 @@ void SubsonicInflowPtTtAngBdrFaceIntegrator::ComputeOuterInviscidState(const Vec
     {
         if (t_dependent)
         {
-            p_total.SetTime(time);
-            T_total.SetTime(time);
+            pt.SetTime(time);
+            Tt.SetTime(time);
         }
-        p0 = p_total.Eval(Tr, ip);
-        T0 = T_total.Eval(Tr, ip);
+        p0 = pt.Eval(Tr, ip);
+        T0 = Tt.Eval(Tr, ip);
     }
 
     p = ComputePressure(state1);

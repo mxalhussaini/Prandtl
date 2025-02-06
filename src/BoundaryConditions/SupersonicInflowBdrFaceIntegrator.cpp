@@ -1,67 +1,42 @@
 #include "SupersonicInflowBdrFaceIntegrator.hpp"
-#include "Physics.hpp"
 
 namespace Prandtl
 {
 
+// Constructor for SupersonicInflowBdrFaceIntegrator with a variable (space- and/or time-dependent) conservative state
 SupersonicInflowBdrFaceIntegrator::SupersonicInflowBdrFaceIntegrator(
     const NumericalFlux &rsolver, const int Np,
     std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
     std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,
-    const real_t &time, FunctionCoefficient &rho_in_, FunctionCoefficient &p_in_,
-    VectorFunctionCoefficient &V_in_, bool constant, bool t_dependent)
-    : BdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, constant, t_dependent),
-    rho_in(rho_in_), p_in(p_in_), V_in(V_in_)
+    const real_t &time, VectorFunctionCoefficient &conserv_state_fun, bool t_dependent)
+    : BdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, false, t_dependent),
+    conserv_state_fun(conserv_state_fun) {}
+
+// Constructor for SupersonicInflowBdrFaceIntegrator with a constant (space- and/or time-dependent) conservative state
+SupersonicInflowBdrFaceIntegrator::SupersonicInflowBdrFaceIntegrator(
+    const NumericalFlux &rsolver, const int Np,
+    std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
+    std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,
+    const real_t &time, const Vector &conserv_state)
+    : BdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, true, false),
+    conserv_state(conserv_state), conserv_state_fun(num_equations, std::function<void(const Vector&, Vector&)>())
 {
-    V.SetSize(dim);
-    if (constant)
-    {
-        rho_in.SetTime(time);
-        p_in.SetTime(time);
-        V_in.SetTime(time);
-        ElementTransformation *Tr = vfes->GetElementTransformation(0);
-        IntegrationPoint ip;
-        ip.x = 0.0;
-        if (dim > 1)
-        {
-            ip.y = 0.0;
-            if (dim > 2)
-            {
-                ip.z = 0.0;
-            }
-        }
-        rho = rho_in.Eval(*Tr, ip);
-        p = p_in.Eval(*Tr, ip);
-        V_in.Eval(V, *Tr, ip);
-    }
 }
 
 void SupersonicInflowBdrFaceIntegrator::ComputeOuterInviscidState(const Vector &state1, Vector &state2, FaceElementTransformations &Tr, const IntegrationPoint &ip)
 {
-    if (!constant)
+    if (constant)
+    {
+        state2 = conserv_state;
+    }
+    else
     {
         if (t_dependent)
         {
-            rho_in.SetTime(time);
-            p_in.SetTime(time);
-            V_in.SetTime(time);
+            conserv_state_fun.SetTime(time);
         }
-        rho = rho_in.Eval(Tr, ip);
-        p = p_in.Eval(Tr, ip);
-        V_in.Eval(V, Tr, ip);
+        conserv_state_fun.Eval(state2, Tr, ip);
     }
-
-    state2(0) = rho;
-    state2(1) = rho * V(0);
-    if (dim > 1)
-    {
-        state2(2) = rho * V(2);
-        if (dim > 2)
-        {
-            state2(3) = rho * V(3);
-        }
-    }
-    state2(num_equations - 1) = p * gammaM1Inverse + 0.5 * rho * (V * V);
 }
 
 void SupersonicInflowBdrFaceIntegrator::ComputeBdrFaceViscousFlux(const Vector &state1, const Vector &state2, const DenseMatrix &grad_mat1, Vector &fluxN, const Vector &nor, FaceElementTransformations &Tr, const IntegrationPoint &ip)

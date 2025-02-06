@@ -46,9 +46,9 @@ int main (int argc, char* argv[])
     real_t cfl = 1.0;
     real_t mu = 0.02;
     real_t Ma = 0.1;
-    real_t Re = 40.0;
+    real_t Re = 20.0;
     bool visualization = true;
-    int vis_steps = 2000;
+    int vis_steps = 100;
     int nancheck_steps = 100;
     int precision = 15;
     std::cout.precision(precision);
@@ -169,8 +169,25 @@ int main (int argc, char* argv[])
     circle = 0; circle[pmesh->bdr_attributes.Size() - 1] = 1;
     NS.AddBdrFaceIntegrator(new Prandtl::NoSlipAdiabWallBdrFaceIntegrator(numericalFlux, order + 1,
         grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), qn, vn), circle);
+    // NS.AddBdrFaceIntegrator(new Prandtl::SpecifiedStateBdrFaceIntegrator(numericalFlux, order + 1,
+    //     grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), u0), box);
+
+    Vector state(num_equations);
+    ElementTransformation *Tr = vfes->GetElementTransformation(0);
+    IntegrationPoint ip;
+    ip.x = 0.0;
+    if (dim > 1)
+    {
+        ip.y = 0.0;
+        if (dim > 2)
+        {
+            ip.z = 0.0;
+        }
+    }
+    u0.Eval(state, *Tr, ip); 
+
     NS.AddBdrFaceIntegrator(new Prandtl::SpecifiedStateBdrFaceIntegrator(numericalFlux, order + 1,
-        grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), u0), box);
+        grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), state), box);
     
 
     ParGridFunction rho, mom, energy;
@@ -207,7 +224,7 @@ int main (int argc, char* argv[])
     pressure += energy;
     pressure *= Prandtl::gammaM1;
 
-    ParaViewDataCollection *pd = new ParaViewDataCollection("LidDrivenCavity", pmesh.get());
+    ParaViewDataCollection *pd = new ParaViewDataCollection("Cylinder", pmesh.get());
     pd->SetPrefixPath("ParaView");
     pd->RegisterField("density", &rho);
     pd->RegisterField("u", &vel_x);
@@ -281,7 +298,7 @@ int main (int argc, char* argv[])
         // dt = cfl * hmin / (max_char_speed * std::pow(order + 1, 2));
     // }
 
-    dt = 1e-6;
+    dt = 1e-4;
 
     tic_toc.Clear();
     tic_toc.Start();
@@ -292,7 +309,7 @@ int main (int argc, char* argv[])
     ode_solver->Init(NS);
 
     bool done = false;
-    for (int ti = 0; done;)
+    for (int ti = 0; !done;)
     {
         real_t dt_real = std::min(dt, t_final - t);
 
