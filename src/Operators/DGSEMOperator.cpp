@@ -62,6 +62,15 @@ DGSEMOperator::DGSEMOperator(std::shared_ptr<ParFiniteElementSpace> vfes_,
 #endif
 }
 
+DGSEMOperator::~DGSEMOperator()
+{
+    for (auto ptr : bfnfi)
+    {
+        delete ptr;
+    }
+}
+
+
 void DGSEMOperator::ComputeBlendingCoefficient(const Vector &x) const
 {
     indicator->CheckSmoothness(x);

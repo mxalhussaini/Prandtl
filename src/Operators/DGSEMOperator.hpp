@@ -73,6 +73,8 @@ public:
                   std::vector<Array<int>> bdr_marker,
                   const real_t alpha_max = 0.5, const real_t alpha_min = 0.001);
     
+    ~DGSEMOperator();
+    
     void AddBdrFaceIntegrator(BdrFaceIntegrator *bfi, Array<int> &bdr_marker);
     
     void Mult(const Vector &x, Vector &y) const override;

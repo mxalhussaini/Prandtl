@@ -16,7 +16,7 @@ DGSEMIntegrator::DGSEMIntegrator(
       rsolver(rsolver_), fluxFunction(rsolver_.GetFluxFunction()),
       Np_x(Np), Np_y(fluxFunction.dim > 1 ? Np : 1), Np_z(fluxFunction.dim > 2 ? Np : 1),
       num_equations(fluxFunction.num_equations), dim(num_equations - 2), num_elements(pmesh->GetNE()),
-      fe(new L2_SegmentElement(Np_x - 1, BasisType::GaussLobatto)),
+    //   fe(new L2_SegmentElement(Np_x - 1, BasisType::GaussLobatto)),
       GLIntRules(0, Quadrature1D::GaussLobatto)
 {
     ir = &GLIntRules.Get(Geometry::SEGMENT, 2 * Np_x - 3);
