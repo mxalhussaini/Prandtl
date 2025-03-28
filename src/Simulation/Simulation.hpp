@@ -1,8 +1,8 @@
 #pragma once
 
 #include "mfem.hpp"
-#include "DGOperator.hpp"
-#include "DGODESolver.hpp"
+// #include "DGOperator.hpp"
+// #include "DGODESolver.hpp"
 
 namespace Prandtl
 {
@@ -12,8 +12,8 @@ using namespace mfem;
 class Simulation
 {
 private:
-    DGOperator *dg_operator;
-    DGODESolver *ode_solver;
+    // DGOperator *dg_operator;
+    // DGODESolver *ode_solver;
     
     Simulation();
     ~Simulation();

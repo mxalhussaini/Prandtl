@@ -7,9 +7,9 @@
 #include <functional>
 #include <string>
 #include "mfem.hpp"
-#include "DGOperator.hpp"
+
 #include "DGSEMOperator.hpp"
-#include "DGFormIntegrator.hpp"
+
 #include "DGSEMIntegrator.hpp"
 #include "BasicOperations.hpp"
 #include "ModalBasis.hpp"
@@ -27,10 +27,9 @@
 #include "RiemannInvariantBdrFaceIntegrator.hpp"
 #include "LaxFriedrichsFlux.hpp"
 #include "ChandrashekarFlux.hpp"
-#include "DGODESolver.hpp"
-#include "RK3SSPExplicitSolver.hpp"
 #include "Physics.hpp"
 #include "Limiter.hpp"
 #include "PerssonPeraireIndicator.hpp"
 #include "Simulation.hpp"
+#include "NumericalFlux.hpp"
 #include "NavierStokesFlux.hpp"
