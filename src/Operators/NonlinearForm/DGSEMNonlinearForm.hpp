@@ -3,7 +3,7 @@
 #include "mfem.hpp"
 #include "DGSEMIntegrator.hpp"
 #include "BdrFaceIntegrator.hpp"
-#include "../../libs/mfem/general/forall.hpp"
+#include "../../../libs/mfem/general/forall.hpp"
 
 namespace Prandtl
 {
