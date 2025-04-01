@@ -51,8 +51,7 @@ private:
     Array<int> alpha_indx;
     Vector el_alpha;
 
-    DenseMatrix grad_mat1, grad_mat2;
-    Vector grad_state;
+    Vector dqdx, dqdy, dqdz;
 
     Vector el_dudxi, el_dudeta, el_dudzeta;
 
@@ -60,7 +59,6 @@ private:
 
     void ComputeSubcellMetrics();
     void ComputeFVFluxes(const DenseMatrix &el_u_mat, real_t alpha_value, ElementTransformation &Tr, DenseMatrix &el_dudt_mat);
-    // delegate Lifting to a derived class
 public:
 
     inline real_t GetMaxCharSpeed()
