@@ -35,6 +35,8 @@ add_executable(${PROJECT_NAME} main.cpp)
 target_sources(${PROJECT_NAME}
     PRIVATE src/Operators/DGSEMOperator.cpp 
     PRIVATE src/Integrators/DGSEMIntegrator/DGSEMIntegrator.cpp
+    PRIVATE src/Integrators/DGSEMIntegrator/Lifting/LiftingScheme.cpp
+    PRIVATE src/Integrators/DGSEMIntegrator/Lifting/LiftingBR1/LiftingBR1.cpp
     PRIVATE src/RiemannSolvers/RoeFlux.cpp
     PRIVATE src/RiemannSolvers/LaxFriedrichsFlux.cpp
     PRIVATE src/RiemannSolvers/HLLFlux.cpp
@@ -76,8 +78,10 @@ target_include_directories(${PROJECT_NAME}
     PUBLIC ${CMAKE_SOURCE_DIR}/src/RiemannSolvers
     PUBLIC ${CMAKE_SOURCE_DIR}/src/BasicOperations
     PUBLIC ${CMAKE_SOURCE_DIR}/src/Filters
-    PUBLIC ${CMAKE_SOURCE_DIR}/src/Integrators/DGSEMIntegrator
     PUBLIC ${CMAKE_SOURCE_DIR}/src/Integrators/BoundaryConditions
+    PUBLIC ${CMAKE_SOURCE_DIR}/src/Integrators/DGSEMIntegrator/Lifting/LiftingBR1
+    PUBLIC ${CMAKE_SOURCE_DIR}/src/Integrators/DGSEMIntegrator/Lifting
+    PUBLIC ${CMAKE_SOURCE_DIR}/src/Integrators/DGSEMIntegrator
     PUBLIC ${CMAKE_SOURCE_DIR}/src/ModalBasis
     PUBLIC ${CMAKE_SOURCE_DIR}/src/Physics
     PUBLIC ${CMAKE_SOURCE_DIR}/src/Limiters

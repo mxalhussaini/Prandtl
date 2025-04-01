@@ -60,11 +60,11 @@ int main (int argc, char* argv[])
     // std::string filename = "../../periodic-square.mesh";
     // std::string filename = "../../SupercriticalAirfoilQuad.msh";
     // std::string filename = "../../CompressionRamp.msh";
-    std::string filename = "../../cylinder.msh";
-    Mesh *mesh = new Mesh(filename);
-    // Mesh *mesh = new Mesh();
+    // std::string filename = "../../cylinder.msh";
+    // Mesh *mesh = new Mesh(filename);
+    Mesh *mesh = new Mesh();
     // *mesh = Mesh::MakeCartesian1D(400, 1.0);
-    // *mesh = Mesh::MakeCartesian2D(16, 16, Element::QUADRILATERAL, false, 2, 2, true);
+    *mesh = Mesh::MakeCartesian2D(16, 16, Element::QUADRILATERAL, false, 2, 2, true);
     // *mesh = Mesh::MakeCartesian2D(384, 96, Element::QUADRILATERAL, false, 4.0, 1.0, true);
     // *mesh = Mesh::MakeCartesian2D(512, 384, Element::QUADRILATERAL, false, 4.0, 3.0, true);
 
@@ -76,11 +76,13 @@ int main (int argc, char* argv[])
     std::shared_ptr<ParMesh> pmesh = std::make_shared<ParMesh>(MPI_COMM_WORLD, *mesh);
     mesh->Clear();
 
-    // if (Mpi::Root())
-    // {
-    //     pmesh->bdr_attributes.Print(std::cout);
-    //     pmesh->bdr_attribute_sets.Print(std::cout);
-    // }
+    if (Mpi::Root())
+    {
+        // pmesh->bdr_attributes.Print(std::cout);
+        // pmesh->bdr_attribute_sets.Print(std::cout);
+        // pmesh->attribute_sets.Print(std::cout);
+        std::cout << pmesh->attributes.Size() << std::endl;
+    }
 
     // for (int k = 0; k < pmesh->GetNBE(); k++)
     // {
@@ -120,8 +122,8 @@ int main (int argc, char* argv[])
         std::cout << "Number of unknowns: " << vfes->GetVSize() << std::endl;
     }
     
-    // VectorFunctionCoefficient u0(num_equations, LidDrivenCavityIC(Ma, Prandtl::gamma));
-    VectorFunctionCoefficient u0(num_equations, Cylinder(Ma, Re, Prandtl::gamma, mu, 2.0));
+    VectorFunctionCoefficient u0(num_equations, LidDrivenCavityIC(Ma, Prandtl::gamma));
+    // VectorFunctionCoefficient u0(num_equations, Cylinder(Ma, Re, Prandtl::gamma, mu, 2.0));
 
     std::shared_ptr<ParGridFunction> sol = std::make_shared<ParGridFunction>(vfes.get());
     sol->ProjectCoefficient(u0);
@@ -143,51 +145,60 @@ int main (int argc, char* argv[])
 
     Prandtl::DGSEMOperator NS(vfes, fes0, pmesh, eta, alpha,
             grad_x, grad_y, grad_z,
-            std::make_unique<Prandtl::DGSEMIntegrator>(pmesh, vfes, fes0, grad_x, grad_y, grad_z, alpha, numericalFlux, order + 1),
+            std::make_unique<Prandtl::DGSEMIntegrator>(pmesh, fes0, alpha, std::make_unique<Prandtl::LiftingBR1>(), numericalFlux, order + 1),
             std::make_unique<Prandtl::PerssonPeraireIndicator>(vfes, fes0, eta, std::make_shared<Prandtl::ModalBasis>(fec, gtype, order, dim)),
             bfnfi, bdr_marker);
 
     // const IntegrationRule *ir_face = &GLIntRules.Get(Geometry::SEGMENT, 2 * order - 1);
 
-    // VectorFunctionCoefficient vn(dim, LidDrivenCavityVelBC());
-    // VectorFunctionCoefficient vlid(dim, LidDrivenCavityVelLidBC());
-    // FunctionCoefficient qn(LidDrivenCavityAdiaBC());
-    // Array<int> walls(pmesh->bdr_attributes.Size());
-    // walls = 1; walls[2] = 0;
-    // Array<int> lid(pmesh->bdr_attributes.Size());
-    // lid = 0; lid[2] = 1;
-    // NS.AddBdrFaceIntegrator(new Prandtl::NoSlipAdiabWallBdrFaceIntegrator(numericalFlux, order + 1,
-    //     grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), qn, vn), walls);
-    // NS.AddBdrFaceIntegrator(new Prandtl::NoSlipAdiabWallBdrFaceIntegrator(numericalFlux, order + 1,
-    //     grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), qn, vlid), lid);
-
     VectorFunctionCoefficient vn(dim, LidDrivenCavityVelBC());
+    VectorFunctionCoefficient vlid(dim, LidDrivenCavityVelLidBC());
     FunctionCoefficient qn(LidDrivenCavityAdiaBC());
-    Array<int> box(pmesh->bdr_attributes.Size());
-    box = 1; box[pmesh->bdr_attributes.Size() - 1] = 0;
-    Array<int> circle(pmesh->bdr_attributes.Size());
-    circle = 0; circle[pmesh->bdr_attributes.Size() - 1] = 1;
+    Array<int> walls(pmesh->bdr_attributes.Size());
+    walls = 1; walls[2] = 0;
+    Array<int> lid(pmesh->bdr_attributes.Size());
+    lid = 0; lid[2] = 1;
     NS.AddBdrFaceIntegrator(new Prandtl::NoSlipAdiabWallBdrFaceIntegrator(numericalFlux, order + 1,
-        grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), qn, vn), circle);
+        grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), qn, vn), walls);
+    NS.AddBdrFaceIntegrator(new Prandtl::NoSlipAdiabWallBdrFaceIntegrator(numericalFlux, order + 1,
+        grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), qn, vlid), lid);
+
+    // VectorFunctionCoefficient vn(dim, LidDrivenCavityVelBC());
+    // FunctionCoefficient qn(LidDrivenCavityAdiaBC());
+    // Array<int> box(pmesh->bdr_attributes.Size());
+    // box = 1; box[pmesh->bdr_attributes.Size() - 1] = 0;
+    // Array<int> circle(pmesh->bdr_attributes.Size());
+    // circle = 0; circle[pmesh->bdr_attributes.Size() - 1] = 1;
+    // NS.AddBdrFaceIntegrator(new Prandtl::NoSlipAdiabWallBdrFaceIntegrator(numericalFlux, order + 1,
+    //     grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), qn, vn), circle);
     // NS.AddBdrFaceIntegrator(new Prandtl::SpecifiedStateBdrFaceIntegrator(numericalFlux, order + 1,
     //     grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), u0), box);
 
-    Vector state(num_equations);
-    ElementTransformation *Tr = vfes->GetElementTransformation(0);
-    IntegrationPoint ip;
-    ip.x = 0.0;
-    if (dim > 1)
-    {
-        ip.y = 0.0;
-        if (dim > 2)
-        {
-            ip.z = 0.0;
-        }
-    }
-    u0.Eval(state, *Tr, ip); 
+    // Vector state(num_equations);
+    // ElementTransformation *Tr = vfes->GetElementTransformation(0);
+    // IntegrationPoint ip;
+    // ip.x = 0.0;
+    // if (dim > 1)
+    // {
+    //     ip.y = 0.0;
+    //     if (dim > 2)
+    //     {
+    //         ip.z = 0.0;
+    //     }
+    // }
+    // u0.Eval(state, *Tr, ip); 
 
-    NS.AddBdrFaceIntegrator(new Prandtl::SpecifiedStateBdrFaceIntegrator(numericalFlux, order + 1,
-        grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), state), box);
+    // NS.AddBdrFaceIntegrator(new Prandtl::SpecifiedStateBdrFaceIntegrator(numericalFlux, order + 1,
+    //     grad_x, grad_y, nullptr, vfes, NS.GetTimeRef(), state), box);
+
+    // Vector prim_state(num_equations);
+    // prim_state(0) = 1.0;
+    // prim_state(1) = Re * mu / (2.0 * prim_state(0));
+    // prim_state(2) = 0.0;
+    // prim_state(3) = prim_state(0) * prim_state(1) * prim_state(1) / (Prandtl::gamma * Ma * Ma);
+    
+    // NS.AddBdrFaceIntegrator(new Prandtl::RiemannInvariantBdrFaceIntegrator(numericalFlux, order + 1, 
+    //     grad_x, grad_y, grad_z, vfes, NS.GetTimeRef(), prim_state), box);
     
 
     ParGridFunction rho, mom, energy;
@@ -224,7 +235,7 @@ int main (int argc, char* argv[])
     pressure += energy;
     pressure *= Prandtl::gammaM1;
 
-    ParaViewDataCollection *pd = new ParaViewDataCollection("Cylinder", pmesh.get());
+    ParaViewDataCollection *pd = new ParaViewDataCollection("LDCF", pmesh.get());
     pd->SetPrefixPath("ParaView");
     pd->RegisterField("density", &rho);
     pd->RegisterField("u", &vel_x);
@@ -255,9 +266,8 @@ int main (int argc, char* argv[])
             visualization = false;
             if (Mpi::Root())
             {
-            std::cout << "Unable to connect to GLVis server at " << vishost << ':'
-                    << visport << std::endl;
-            std::cout << "GLVis visualization disabled.\n";
+                std::cout << "Unable to connect to GLVis server at " << vishost << ':' << visport << std::endl;
+                std::cout << "GLVis visualization disabled.\n";
             }
         }
         else
@@ -394,6 +404,10 @@ int main (int argc, char* argv[])
     // }
 
     delete ode_solver;
+
+    delete fes;
+    delete dfes;
+    delete pd;
     
     return 0;
 }

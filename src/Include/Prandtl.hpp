@@ -8,13 +8,16 @@
 #include <string>
 #include "mfem.hpp"
 
+#include "BdrFaceIntegrator.hpp"
 #include "DGSEMOperator.hpp"
+
+#include "LiftingScheme.hpp"
+#include "LiftingBR1.hpp"
 
 #include "DGSEMIntegrator.hpp"
 #include "BasicOperations.hpp"
 #include "ModalBasis.hpp"
 #include "EntropyFilter.hpp"
-#include "BdrFaceIntegrator.hpp"
 #include "SlipWallBdrFaceIntegrator.hpp"
 #include "NoSlipAdiabWallBdrFaceIntegrator.hpp"
 #include "NoSlipIsothWallBdrFaceIntegrator.hpp"
