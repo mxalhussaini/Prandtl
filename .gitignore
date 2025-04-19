@@ -74,6 +74,8 @@ Temporary Items
 
 out/build/
 
+TestCases/*/*/*/Paraview/
+
 # libs/metis-5.1.0/
 
 [Bb][Uu][Ii][Ll][Dd]/
