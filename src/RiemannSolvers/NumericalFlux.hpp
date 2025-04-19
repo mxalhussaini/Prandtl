@@ -10,13 +10,13 @@ using namespace mfem;
 
 class NumericalFlux
 {
-
 protected:
     const NavierStokesFlux fluxFunction;
+    int dim, num_equations;
 public:
 
     NumericalFlux(const NavierStokesFlux &fluxFunction)
-        : fluxFunction(fluxFunction) {}
+        : fluxFunction(fluxFunction), dim(fluxFunction.dim), num_equations(fluxFunction.num_equations) {}
 
     virtual real_t ComputeVolumeFlux(const Vector &state1, const Vector &state2,
                                      const Vector &metric1, const Vector &metric2,

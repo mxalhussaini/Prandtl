@@ -36,7 +36,6 @@ private:
     IntegrationRule mapped_face_ir;
     const IntegrationRule *vol_ir, *face_ir, *bdr_face_ir;
 
-
     const Table &element2element;
     const Table &element2bdrelement;
     
@@ -63,7 +62,9 @@ private:
     const real_t epsilon = 1e-10;
     const int N_iter = 20;
     const real_t zeta_tol = 1e-4;
-    
+    real_t tmp;
+
+    real_t gamma, gammaM1;
 
     virtual void FilterModes(const DenseMatrix &hiearch_states, Vector &state, real_t zeta) override;
     void ComputeMinima(const Vector &state, const char *mode = "e");
@@ -82,7 +83,7 @@ public:
         std::unique_ptr<ModalBasis> modalBasis_,
         const Table &el2el, const Table &el2bdrel,
         const IntegrationRule *vol_ir_, const IntegrationRule *face_ir_,
-        const IntegrationRule *bdr_face_ir_
+        const IntegrationRule *bdr_face_ir_, real_t gamma
         );
     void GetFilterConstraints(const Vector &x) override;
     void GetEntropyConstraints(const Vector &x);

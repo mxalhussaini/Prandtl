@@ -1,7 +1,6 @@
 #include "EntropyFilter.hpp"
 #include "BasicOperations.hpp"
 #include "BdrFaceIntegrator.hpp"
-#include "Physics.hpp"
 
 namespace Prandtl
 {
@@ -15,7 +14,7 @@ EntropyFilter::EntropyFilter(
     std::unique_ptr<ModalBasis> modalBasis_,
     const Table &el2el, const Table &el2bdrel,
     const IntegrationRule *vol_ir_, const IntegrationRule *face_ir_,
-    const IntegrationRule *bdr_face_ir_
+    const IntegrationRule *bdr_face_ir_, real_t gamma
     ) : Filter(), vfes(vfes_), fes0(fes0_), sol(sol_), mesh(mesh_),
         entropy(std::move(entropy_)), modalBasis(std::move(modalBasis_)),
         element2element(el2el), element2bdrelement(el2bdrel),
@@ -26,7 +25,8 @@ EntropyFilter::EntropyFilter(
         order(vfes->GetElementOrder(0)), element(mesh->GetElement(0)),
         etype(element->GetType()), egeom(element->GetGeometryType()),
         ftype(dim == 2 ? Element::SEGMENT : (element->GetNFaceVertices(0) == 3 ? Element::TRIANGLE : Element::QUADRILATERAL)),
-        fgeom(dim == 2 ? Geometry::SEGMENT : (element->GetNFaceVertices(0) == 3 ? Geometry::TRIANGLE : Geometry::SQUARE))
+        fgeom(dim == 2 ? Geometry::SEGMENT : (element->GetNFaceVertices(0) == 3 ? Geometry::TRIANGLE : Geometry::SQUARE)),
+        gamma(gamma), gammaM1(gamma - 1.0)
 {
     max_order.SetSize(ndofs);
     VDM_face_irs.resize(Geometry::NumBdrArray[egeom]);
@@ -159,7 +159,7 @@ void EntropyFilter::GetEntropyConstraints(const Vector &x)
 
 void EntropyFilter::FilterModes(const DenseMatrix &hiearch_states, Vector &state, real_t zeta)
 {
-    hierarch_states.GetRow(0, state2);
+    hierarch_states.GetRow(0, state);
     for (int i = 1; i < hierarch_states.Height(); i++)
     {
         hierarch_states.GetRow(i, state2);
@@ -179,11 +179,14 @@ void EntropyFilter::FilterSolution(Vector &x)
         x.GetSubVector(vdof_indices, el_vdofs);
         entropy->GetSubVector(ent_indices, ent_dof);
         vdof_mat1.UseExternalData(el_vdofs.GetData(), ndofs, num_equations);
-        fe1 = vfes->GetFE(el);
 
         el_min_rho = el_min_p = el_min_e = infinity();
 
-        ComputeElementMinima(vdof_mat1, fe1, state1, "all");
+        for (int i = 0; i < ndofs; i++)
+        {
+            vdof_mat1.GetRow(i, state1);
+            ComputeMinima(state1, "all");
+        }
 
         if (el_min_rho < rho_min || el_min_p < p_min || el_min_e < ent_dof(0) - ent_tol)
         {
@@ -191,70 +194,33 @@ void EntropyFilter::FilterSolution(Vector &x)
             {
                 vdof_mat1.GetColumn(eq, vdof_col);
                 modes_mat.GetColumnReference(eq, modes_col);
-                modalBasis->ComputeModes(vdof_col);
-                modalBasis->GetModes(modes_col);
-                // modes_mat.SetCol(eq, modes_col);
+                modalBasis->ComputeModes(vdof_col, modes_col);
             }
 
             zeta = 0.0;
-            // ~2 s.
             for (int i = 0; i < ndofs; i++)
             {
                 ComputeHierarchStates(VDM, hierarch_states, i);
                 FilterModes(hierarch_states, state1, zeta);
                 rho = state1(0);
-                p = ComputePressure(state1);
-                e = ComputeEntropy(rho, p);
+                p = ComputePressure(state1, gammaM1);
+                e = ComputeEntropy(rho, p, gamma);
                 if (rho < rho_min || p < p_min || e < ent_dof(0) - ent_tol)
                 {
                     ComputeRoot(state1, zeta);
-                }
-            }
-
-            // ~4.85 s.
-            for (int i = 0; i < vol_ir->GetNPoints(); i++)
-            {
-                ComputeHierarchStates(VDM_vol_ir, hierarch_states, i);
-                FilterModes(hierarch_states, state1, zeta);
-                rho = state1(0);
-                p = ComputePressure(state1);
-                e = ComputeEntropy(rho, p);
-                if (rho < rho_min || p < p_min || e < ent_dof(0) - ent_tol)
-                {
-                    ComputeRoot(state1, zeta);
-                }
-            }
-
-            // this loop takes ~3.1 s.
-            for (int f = 0; f < Geometry::NumBdrArray[egeom]; f++)
-            {
-                mesh->GetLocalFaceTransformation(ftype, etype, Tr_ip.Transf, 64 * f);
-                Tr_ip.Transform(*face_ir, mapped_face_ir);
-                DenseMatrix &VDM_face_ir = VDM_face_irs[f];
-                for (int i = 0; i < mapped_face_ir.GetNPoints(); i++)
-                {
-                    ComputeHierarchStates(VDM_face_ir, hierarch_states, i);
-                    FilterModes(hierarch_states, state1, zeta);
-                    rho = state1(0);
-                    p = ComputePressure(state1);
-                    e = ComputeEntropy(rho, p);
-                    if (rho < rho_min || p < p_min || e < ent_dof(0) - ent_tol)
-                    {
-                        ComputeRoot(state1, zeta);
-                    }
                 }
             }
             
             for (int d = 1; d < order + 1; ++d)
             {
-                ffac(d) = exp(-zeta * pow(d, 2));
+                ffac(d) = std::exp(-zeta * pow(d, 2));
             }
 
             for (int i = 0; i < ndofs; i++)
             {
                 for (int k = 0; k < num_equations; k++)
                 {
-                    double tmp = 0.0;
+                    tmp = 0.0;
                     for (int j = 0; j < order + 1; j++)
                     {
                         for (int l = 0; l < ndofs; l++)
@@ -296,8 +262,8 @@ void EntropyFilter::ComputeHierarchStates(const DenseMatrix &VDM, DenseMatrix &h
 void EntropyFilter::ComputeMinima(const Vector &state, const char *mode)
 {
     rho = state(0);
-    p = ComputePressure(state);
-    e = ComputeEntropy(rho, p);
+    p = ComputePressure(state, gammaM1);
+    e = ComputeEntropy(rho, p, gamma);
     el_min_e = std::min(el_min_e, e);
     if (strcmp(mode, "all") == 0)
     {
@@ -308,32 +274,6 @@ void EntropyFilter::ComputeMinima(const Vector &state, const char *mode)
 
 void EntropyFilter::ComputeElementMinima(const DenseMatrix &vdof_mat, const FiniteElement *fe, Vector &state, const char *mode)
 {
-    for (int f = 0; f < Geometry::NumBdrArray[egeom]; f++)
-    {
-        mesh->GetLocalFaceTransformation(ftype, etype, Tr_ip.Transf, 64 * f);
-        Tr_ip.Transform(*face_ir, mapped_face_ir);
-        for (int j = 0; j < mapped_face_ir.GetNPoints(); j++)
-        {
-            const IntegrationPoint& eip = mapped_face_ir.IntPoint(j);
-            fe->CalcShape(eip, shape);
-            vdof_mat.MultTranspose(shape, state);
-            ComputeMinima(state, mode);
-        }
-    }
-
-    for (int k = 0; k < vol_ir->GetNPoints(); k++)
-    {
-        const IntegrationPoint &ip = vol_ir->IntPoint(k);
-        fe->CalcShape(ip, shape);
-        vdof_mat.MultTranspose(shape, state);
-        ComputeMinima(state, mode);
-    }
-
-    for (int l = 0; l < ndofs; l++)
-    {
-        vdof_mat.GetRow(l, state);
-        ComputeMinima(state, mode);
-    }
 }
 
 void EntropyFilter::ComputeBdrStateMinima(const DenseMatrix &vdof_mat,
@@ -393,8 +333,8 @@ void EntropyFilter::ComputeRoot(Vector &state, real_t &zeta)
         zeta3 = 0.5 * (zeta1 + zeta2);
         FilterModes(hierarch_states, state, zeta3);
         rho = state(0);
-        p = ComputePressure(state);
-        e = ComputeEntropy(rho, p);
+        p = ComputePressure(state, gammaM1);
+        e = ComputeEntropy(rho, p, gamma);
         if (rho < rho_min || p < p_min || e < (*entropy)(0) - ent_tol)
         {
             zeta1 = zeta3;
