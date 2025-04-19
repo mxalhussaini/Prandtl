@@ -11,6 +11,16 @@ real_t ComputeLogMean(real_t x, real_t y, real_t eps)
     return ln_mean;
 }
 
+void AddRow(DenseMatrix &A, const Vector &row, int r)
+{
+    MFEM_ASSERT(A.Width() == row.Size(), "");
+    MFEM_ASSERT(row.GetData() != nullptr, "supplied row pointer is null");
+    for (int j = 0; j < A.Width(); j++)
+    {
+        A(r, j) += row[j];
+    }
+}
+
 void ComputeMean(const Vector &x, const Vector &y, Vector &mean)
 {
     mean = x;
@@ -18,7 +28,7 @@ void ComputeMean(const Vector &x, const Vector &y, Vector &mean)
     mean *= 0.5;
 }
 
-real_t ComputePressure(const Vector &state)
+real_t ComputePressure(const Vector &state, real_t gammaM1)
 {
     Vector V(state.GetData() + 1, state.Size() - 2);
     V /= state(0);
@@ -26,7 +36,7 @@ real_t ComputePressure(const Vector &state)
     return gammaM1 * (state(state.Size() - 1) - 0.5 * state(0) * (V * V));
 }
 
-real_t ComputeEntropy(real_t rho, real_t p)
+real_t ComputeEntropy(real_t rho, real_t p, real_t gamma)
 {
 #ifdef PARABOLIC
     return 0; // update this for FR (for NS) in the future 
@@ -35,12 +45,12 @@ real_t ComputeEntropy(real_t rho, real_t p)
 #endif
 }
 
-real_t ComputeInternalEnergy(real_t p, real_t rho, real_t b)
+real_t ComputeInternalEnergy(real_t p, real_t rho, real_t gammaM1Inverse, real_t b)
 {
     return p * (1.0 - b * rho) / rho * gammaM1Inverse;
 }
 
-real_t ComputeSoundSpeed(real_t p, real_t rho, real_t b)
+real_t ComputeSoundSpeed(real_t p, real_t rho, real_t gamma, real_t b)
 {
     return std::sqrt(gamma * p / (1.0 - b * rho) / rho);
 }
@@ -50,12 +60,12 @@ real_t ComputeEnthalpy(real_t p, real_t rho, real_t e)
     return e + p / rho;
 }
 
-real_t ComputeTotalEnthalpy(const Vector &state)
+real_t ComputeTotalEnthalpy(const Vector &state, real_t gammaM1)
 {
-    return (state(state.Size() - 1) + ComputePressure(state)) / state(0);
+    return (state(state.Size() - 1) + ComputePressure(state, gammaM1)) / state(0);
 }
 
-void Conserv2Entropy(const DenseMatrix &vdof_mat, DenseMatrix &ent_mat)
+void Conserv2Entropy(const DenseMatrix &vdof_mat, DenseMatrix &ent_mat, real_t gamma, real_t gammaM1, real_t gammaM1Inverse)
 {
     ent_mat = 0.0;
     real_t s, beta;
@@ -63,12 +73,12 @@ void Conserv2Entropy(const DenseMatrix &vdof_mat, DenseMatrix &ent_mat)
     for (int d = 0; d < vdof_mat.Height(); d++)
     {
         vdof_mat.GetRow(d, state);
-        Conserv2Entropy(state, ent_state);
+        Conserv2Entropy(state, ent_state, gamma, gammaM1, gammaM1Inverse);
         ent_mat.SetRow(d, ent_state);
     }
 }
 
-void Conserv2Entropy(const Vector &state, Vector &ent_state)
+void Conserv2Entropy(const Vector &state, Vector &ent_state, real_t gamma, real_t gammaM1, real_t gammaM1Inverse)
 {
     real_t s, p, v_sq, beta;
 
@@ -93,7 +103,7 @@ void Conserv2Entropy(const Vector &state, Vector &ent_state)
     ent_state(state.Size() - 1) = -beta;
 }
 
-void Entropy2Conserv(const Vector &ent_state, Vector &state)
+void Entropy2Conserv(const Vector &ent_state, Vector &state, real_t gamma, real_t gammaM1, real_t gammaM1Inverse)
 {
     int dim = ent_state.Size() - 2;
     Vector vel(ent_state.GetData() + 1, dim);
@@ -113,7 +123,7 @@ void Entropy2Conserv(const Vector &ent_state, Vector &state)
     state(dim + 1) = state(0) * (1.0 / beta * gammaM1Inverse + 0.5 * (vel * vel));
 }
 
-void EntropyGrad2PrimGrad(const DenseMatrix &vdof_mat, DenseMatrix &grad)
+void EntropyGrad2PrimGrad(const DenseMatrix &vdof_mat, DenseMatrix &grad, real_t gammaM1, real_t gammaM1Inverse)
 {
     Vector state, grad_state;
     real_t KE, p, v_sq;
@@ -159,7 +169,7 @@ void EntropyGrad2PrimGrad(const DenseMatrix &vdof_mat, DenseMatrix &grad)
     }
 }
 
-void Conserv2Prim(const Vector &state, Vector &prim_state)
+void Conserv2Prim(const Vector &state, Vector &prim_state, real_t gammaM1)
 {
     prim_state.SetSize(state.Size());
     prim_state(0) = state(0);
@@ -172,10 +182,10 @@ void Conserv2Prim(const Vector &state, Vector &prim_state)
             prim_state(3) = state(3) / state(0);
         }
     }
-    prim_state(state.Size() - 1) = ComputePressure(state);
+    prim_state(state.Size() - 1) = ComputePressure(state, gammaM1);
 }
 
-void Prim2Conserv(const Vector &state, Vector &conserv_state)
+void Prim2Conserv(const Vector &state, Vector &conserv_state, real_t gammaM1Inverse)
 {
     conserv_state.SetSize(state.Size());
     conserv_state(0) = state(0);
@@ -274,14 +284,14 @@ void RotateBack(Vector &state, const Vector &nor)
 }
 
 
-Vector ComputeRoeAverage(const Vector &state1, const Vector &state2, const real_t gamma)
+Vector ComputeRoeAverage(const Vector &state1, const Vector &state2, const real_t gammaM1)
 {
     Vector RoeAverage(state1.Size() + 1);
     real_t V2 = 0.0;
 
     Vector prim1, prim2;
-    Conserv2Prim(state1, prim1);
-    Conserv2Prim(state2, prim2);
+    Conserv2Prim(state1, prim1, gammaM1);
+    Conserv2Prim(state2, prim2, gammaM1);
 
     const real_t &rho1 = prim1(0);
     const real_t &rho2 = prim2(0);
@@ -309,8 +319,8 @@ Vector ComputeRoeAverage(const Vector &state1, const Vector &state2, const real_
     }
 
 
-    const real_t H1 = ComputeTotalEnthalpy(state1);
-    const real_t H2 = ComputeTotalEnthalpy(state2);
+    const real_t H1 = ComputeTotalEnthalpy(state1, gammaM1);
+    const real_t H2 = ComputeTotalEnthalpy(state2, gammaM1);
     RoeAverage(RoeAverage.Size() - 2) = (std::sqrt(rho1) * H1 + std::sqrt(rho2) * H2) / (std::sqrt(rho1) + std::sqrt(rho2));
 
     RoeAverage(RoeAverage.Size() - 1) = std::sqrt(gammaM1 * (RoeAverage(RoeAverage.Size() - 2) -  0.5 * V2));
