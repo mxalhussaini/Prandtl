@@ -1,4 +1,5 @@
 #include "LiftingBR1.hpp"
+#include "BdrFaceIntegrator.hpp"
 
 namespace Prandtl
 {
@@ -306,5 +307,104 @@ void LiftingBR1::AssembleLiftingElementVector(const FiniteElement &el, ElementTr
         el_dudx_mat.SetRow(i, grad_state);
     }
 }
+
+void LiftingBR1::AssembleLiftingBdrFaceVector(BdrFaceIntegrator *bfi, const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudx, Vector &el_dudy, Vector &el_dudz)
+{ 
+    el_dudx.SetSize(dof1 * num_equations);
+    el_dudy.SetSize(dof1 * num_equations);
+    el_dudz.SetSize(dof1 * num_equations);
+    el_dudx = 0.0;
+    el_dudy = 0.0;
+    el_dudz = 0.0;
+ 
+    const DenseMatrix el_u_mat1(el_u.GetData(), dof1, num_equations);
+    DenseMatrix el_dudx_mat1(el_dudx.GetData(), dof1, num_equations);
+    DenseMatrix el_dudy_mat1(el_dudy.GetData(), dof1, num_equations);
+    DenseMatrix el_dudz_mat1(el_dudz.GetData(), dof1, num_equations);
+ 
+    for (int i = 0; i < ir_face->GetNPoints(); i++)
+    {
+       const IntegrationPoint &ip = ir_face->IntPoint(i);
+       Tr.SetAllIntPoints(&ip);
+       J1 = Tr.GetElement1Transformation().Weight();
+       el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+ 
+       el_u_mat1.MultTranspose(shape1, state1);
+ 
+       CalcOrtho(Tr.Jacobian(), nor);
+
+       bfi->ComputeBdrFaceLiftingFlux(state1, f, Tr, ip);
+       h = g = f;
+
+       f *= nor(0);
+       AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, f, el_dudx_mat1);
+ 
+       g *= nor(1);
+       AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, g, el_dudy_mat1);
+ 
+       h *= nor(2);
+       AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, h, el_dudz_mat1);       
+    }
+}
+
+void LiftingBR1::AssembleLiftingBdrFaceVector(BdrFaceIntegrator *bfi, const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudx, Vector &el_dudy)
+{ 
+    el_dudx.SetSize(dof1 * num_equations);
+    el_dudy.SetSize(dof1 * num_equations);
+    el_dudx = 0.0;
+    el_dudy = 0.0;
+ 
+    const DenseMatrix el_u_mat1(el_u.GetData(), dof1, num_equations);
+    DenseMatrix el_dudx_mat1(el_dudx.GetData(), dof1, num_equations);
+    DenseMatrix el_dudy_mat1(el_dudy.GetData(), dof1, num_equations);
+ 
+    for (int i = 0; i < ir_face->GetNPoints(); i++)
+    {
+       const IntegrationPoint &ip = ir_face->IntPoint(i);
+       Tr.SetAllIntPoints(&ip);
+       J1 = Tr.GetElement1Transformation().Weight();
+       el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+ 
+       el_u_mat1.MultTranspose(shape1, state1);
+ 
+       CalcOrtho(Tr.Jacobian(), nor);
+
+       bfi->ComputeBdrFaceLiftingFlux(state1, f, Tr, ip);
+       g = f;
+
+       f *= nor(0);
+       AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, f, el_dudx_mat1);
+ 
+       g *= nor(1);
+       AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, g, el_dudy_mat1);      
+    }
+}
+
+void LiftingBR1::AssembleLiftingBdrFaceVector(BdrFaceIntegrator *bfi, const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudx)
+{ 
+    el_dudx.SetSize(dof1 * num_equations);
+    el_dudx = 0.0;
+ 
+    const DenseMatrix el_u_mat1(el_u.GetData(), dof1, num_equations);
+    DenseMatrix el_dudx_mat1(el_dudx.GetData(), dof1, num_equations);
+ 
+    for (int i = 0; i < ir_face->GetNPoints(); i++)
+    {
+       const IntegrationPoint &ip = ir_face->IntPoint(i);
+       Tr.SetAllIntPoints(&ip);
+       J1 = Tr.GetElement1Transformation().Weight();
+       el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
+ 
+       el_u_mat1.MultTranspose(shape1, state1);
+ 
+       nor(0) = (Tr.GetElement1IntPoint().x - 0.5) * 2.0;
+
+       bfi->ComputeBdrFaceLiftingFlux(state1, f, Tr, ip);
+
+       f *= nor(0);
+       AddMult_a_VWt(+1.0 / (ir->IntPoint(0).weight * J1), shape1, f, el_dudx_mat1);      
+    }
+}
+
 
 }

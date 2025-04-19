@@ -7,6 +7,8 @@ namespace Prandtl
 
 using namespace mfem;
 
+class BdrFaceIntegrator;
+
 class LiftingScheme
 {
 protected:
@@ -16,9 +18,10 @@ protected:
     const IntegrationRule *ir, *ir_face, *ir_vol;
     real_t J, J1, J2;
     int id, dof, dof1, dof2, num_equations, Np_x, Np_y, Np_z;
+
     LiftingScheme() = default;
 public:
-    virtual void SetLiftingParameters(const IntegrationRule *ir, const IntegrationRule *ir_face, const IntegrationRule *ir_vol,const DenseMatrix &D_T, int num_equations, int Np, int dim);
+    virtual void SetLiftingParameters(const IntegrationRule *ir, const IntegrationRule *ir_face, const IntegrationRule *ir_vol, const DenseMatrix &D_T, int num_equations, int Np, int dim);
     virtual ~LiftingScheme() = default;
 
     virtual void AssembleLiftingFaceVector(const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudx, Vector &el_dudy, Vector &el_dudz) = 0;
@@ -28,6 +31,10 @@ public:
     virtual void AssembleLiftingElementVector(const FiniteElement &el, ElementTransformation &Tr, const Vector &el_u, Vector &el_dudx, Vector &el_dudy, Vector &el_dudz) = 0;
     virtual void AssembleLiftingElementVector(const FiniteElement &el, ElementTransformation &Tr, const Vector &el_u, Vector &el_dudx, Vector &el_dudy) = 0;
     virtual void AssembleLiftingElementVector(const FiniteElement &el, ElementTransformation &Tr, const Vector &el_u, Vector &el_dudx) = 0;
+
+    virtual void AssembleLiftingBdrFaceVector(BdrFaceIntegrator *bfi, const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudx, Vector &el_dudy, Vector &el_dudz) = 0;
+    virtual void AssembleLiftingBdrFaceVector(BdrFaceIntegrator *bfi, const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudx, Vector &el_dudy) = 0;
+    virtual void AssembleLiftingBdrFaceVector(BdrFaceIntegrator *bfi, const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudx) = 0;
 };
     
 } // namespace Prandtl

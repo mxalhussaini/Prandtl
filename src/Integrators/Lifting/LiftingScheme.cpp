@@ -8,6 +8,7 @@ void LiftingScheme::SetLiftingParameters(const IntegrationRule *ir_, const Integ
     ir = ir_;
     ir_face = ir_face_;
     ir_vol = ir_vol_;
+
     D_T = D_T_;
     dof = dof1 = dof2 = ir_vol->GetNPoints();
     num_equations = num_equations_;
