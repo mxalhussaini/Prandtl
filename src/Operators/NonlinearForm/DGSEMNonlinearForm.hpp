@@ -1,4 +1,4 @@
-# pragma once
+#pragma once
 
 #include "mfem.hpp"
 #include "DGSEMIntegrator.hpp"
