@@ -1,0 +1,88 @@
+{
+    "compileTime":
+    {
+        "PARABOLIC": false,
+        "SUBCELL_FV_BLENDING": true,
+        "SUTHERLAND": false,
+        "USE_FILTER": false
+    },
+    "runTime":
+    {
+        "order": 3,
+        "dim" : 2, 
+        "num_equations": 4,
+
+        "precision": 15,
+
+        "visualize": true,
+        "paraview": true,
+        "visit": false,
+        "vis_steps": 100,
+        "output_file_path" : "../../TestCases/Euler/2D/DoubleMachReflection",
+
+        "nancheck": false,
+
+        "clock_simulation": true,
+        "variable_dt": true,
+        "cfl": 1.0,
+        "dt": 1e-4,
+        "final_time": 2.0,
+
+        "Pr": 0.72,
+        "mu": 0.02,
+        "R_gas": 287.05,
+        "gamma" : 1.4,
+
+        "mesh_ordering": "Hilbert",
+        "ref_levels": 0,
+
+        "mesh_file": "../../TestCases/Euler/2D/DoubleMachReflection/DoubleMachReflection.msh",
+        "conditions":
+        {
+            "initial_conditions":
+            {
+                "signature": 1,
+                "params":
+                {
+                    "x1": 2.5
+                },
+                "function": "DoubleMachReflectionIC"
+            },
+            "boundary_conditions":
+            {
+                "left":
+                {
+                    "type": "specified-state",
+                    "vector": "DoubleMachReflectionLeftBottom1BCVector"
+                },
+                "bottom1":
+                {
+                    "type": "specified-state",
+                    "vector": "DoubleMachReflectionLeftBottom1BCVector"
+                },
+                "bottom2":
+                {
+                    "type": "slip"
+                },
+                "right":
+                {
+                    "type": "supersonic-outflow"
+                },
+                "top":
+                {
+                    "type": "specified-state",
+                    "signature": 1,
+                    "params":
+                    {
+                        "x1": 2.5
+                    },
+                    "time_dependent": true,
+                    "function": "DoubleMachReflectionTopBCFunction"
+                }
+
+            }
+        },
+        "numerical_flux": "Chandrashekar",
+        "ode_solver": "RK3SSP"
+    }
+}
