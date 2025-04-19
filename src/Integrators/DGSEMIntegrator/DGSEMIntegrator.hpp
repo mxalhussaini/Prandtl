@@ -55,7 +55,7 @@ private:
 
     Vector el_dudxi, el_dudeta, el_dudzeta;
 
-    std::unique_ptr<LiftingScheme> liftingScheme;
+    std::shared_ptr<LiftingScheme> liftingScheme;
 
     void ComputeSubcellMetrics();
     void ComputeFVFluxes(const DenseMatrix &el_u_mat, real_t alpha_value, ElementTransformation &Tr, DenseMatrix &el_dudt_mat);
@@ -69,7 +69,7 @@ public:
     DGSEMIntegrator(std::shared_ptr<ParMesh> pmesh,
                     std::shared_ptr<ParFiniteElementSpace> fes0,
                     std::shared_ptr<ParGridFunction> alpha,
-                    std::unique_ptr<LiftingScheme> liftingScheme,
+                    std::shared_ptr<LiftingScheme> liftingScheme,
                     NumericalFlux &rsolver, int Np);
 
     void AssembleFaceVector(const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudt) override;

@@ -1,6 +1,5 @@
 #include "DGSEMIntegrator.hpp"
 #include "BasicOperations.hpp"
-#include "Physics.hpp"
 
 namespace Prandtl
 {
@@ -9,9 +8,9 @@ DGSEMIntegrator::DGSEMIntegrator(
       std::shared_ptr<ParMesh> pmesh_,
       std::shared_ptr<ParFiniteElementSpace> fes0_,
       std::shared_ptr<ParGridFunction> alpha_,
-      std::unique_ptr<LiftingScheme> liftingScheme_,
+      std::shared_ptr<LiftingScheme> liftingScheme_,
       NumericalFlux &rsolver_, int Np)
-    : NonlinearFormIntegrator(), pmesh(pmesh_), fes0(fes0_), alpha(alpha_), liftingScheme(std::move(liftingScheme_)),
+    : NonlinearFormIntegrator(), pmesh(pmesh_), fes0(fes0_), alpha(alpha_), liftingScheme(liftingScheme_),
       rsolver(rsolver_), fluxFunction(rsolver_.GetFluxFunction()),
       Np_x(Np), Np_y(fluxFunction.dim > 1 ? Np : 1), Np_z(fluxFunction.dim > 2 ? Np : 1),
       num_equations(fluxFunction.num_equations), dim(num_equations - 2), num_elements(pmesh->GetNE()),
@@ -128,7 +127,10 @@ DGSEMIntegrator::DGSEMIntegrator(
     dU_face2.SetSize(num_equations);
     dU.SetSize(num_equations);
 
+
+#ifdef PARABOLIC
     liftingScheme->SetLiftingParameters(ir, ir_face, ir_vol, D_T, num_equations, Np, dim);
+#endif
 
 #ifdef SUBCELL_FV_BLENDING
     SubcellMetricXi.SetSize(dim, Np_z * Np_y * (Np_x + 1), pmesh->GetNE());
