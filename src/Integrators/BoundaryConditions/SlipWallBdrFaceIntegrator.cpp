@@ -1,16 +1,11 @@
 #include "SlipWallBdrFaceIntegrator.hpp"
 #include "BasicOperations.hpp"
-#include "Physics.hpp"
 
 namespace Prandtl
 {
 
-SlipWallBdrFaceIntegrator::SlipWallBdrFaceIntegrator(
-    const NumericalFlux &rsolver, int Np,
-    std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
-    std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,
-    const real_t &time, bool constant, bool t_dependent)
-    : BdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, constant, t_dependent)
+SlipWallBdrFaceIntegrator::SlipWallBdrFaceIntegrator(std::shared_ptr<LiftingScheme> liftingScheme, const NumericalFlux &rsolver, int Np, const real_t &time, real_t gamma, bool constant, bool t_dependent)
+    : BdrFaceIntegrator(liftingScheme, rsolver, Np, time, gamma, constant, t_dependent), gammaP1(1.0 + gamma), gammaP1Inverse(1.0 / gammaP1)
 {
     unit_nor.SetSize(rsolver.GetFluxFunction().dim);
     prim.SetSize(rsolver.GetFluxFunction().num_equations);
@@ -32,10 +27,10 @@ real_t SlipWallBdrFaceIntegrator::ComputeBdrFaceInviscidFlux(const Vector &state
         state2(1) = state2(1) * nor(0);
     }
 
-    Conserv2Prim(state2, prim);
+    Conserv2Prim(state2, prim, gammaM1);
 
     Vector vel(prim.GetData() + 1, nor.Size());
-    an = ComputeSoundSpeed(prim(prim.Size() - 1), prim(0));
+    an = ComputeSoundSpeed(prim(prim.Size() - 1), prim(0), gamma);
     if (prim(1) > 0.0)
     {
         p_star = prim(prim.Size() - 1) +

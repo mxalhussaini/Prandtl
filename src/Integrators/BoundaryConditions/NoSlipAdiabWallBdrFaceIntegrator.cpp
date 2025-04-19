@@ -4,25 +4,20 @@ namespace Prandtl
 {
 
 NoSlipAdiabWallBdrFaceIntegrator::NoSlipAdiabWallBdrFaceIntegrator(
-    const NumericalFlux &rsolver, const int Np,
-    std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
-    std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,
-    const real_t &time, FunctionCoefficient &qn_wall_, VectorFunctionCoefficient &V_wall_,
+    std::shared_ptr<LiftingScheme> liftingScheme, const NumericalFlux &rsolver, const int Np,
+    const real_t &time, real_t gamma, FunctionCoefficient &qn_wall_, VectorFunctionCoefficient &V_wall_,
     bool t_dependent)
-    : SlipWallBdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, false, t_dependent),
+    : SlipWallBdrFaceIntegrator(liftingScheme, rsolver, Np, time, gamma, false, t_dependent),
     qn_wall(qn_wall_), V_wall(V_wall_) {}
 
 NoSlipAdiabWallBdrFaceIntegrator::NoSlipAdiabWallBdrFaceIntegrator(
-    const NumericalFlux &rsolver, const int Np,
-    std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
-    std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,
-    const real_t &time, real_t qn, const Vector &V)
-    : SlipWallBdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, true, false),
+    std::shared_ptr<LiftingScheme> liftingScheme, const NumericalFlux &rsolver, const int Np,
+    const real_t &time, real_t gamma, real_t qn, const Vector &V)
+    : SlipWallBdrFaceIntegrator(liftingScheme, rsolver, Np, time, gamma, true, false),
     qn(qn), V(V),
     qn_wall(std::function<real_t(const Vector&)>()), V_wall(dim, std::function<void(const Vector &, Vector&)>()) {}
 
-void NoSlipAdiabWallBdrFaceIntegrator::ComputeBdrFaceViscousFlux(const Vector &state1, const Vector &state2, const DenseMatrix &grad_mat1,
-        Vector &fluxN, const Vector &nor, FaceElementTransformations &Tr, const IntegrationPoint &ip)
+void NoSlipAdiabWallBdrFaceIntegrator::ComputeBdrFaceViscousFlux(const Vector &state1, const Vector &state2, const Vector &dqdx, const Vector &dqdy, const Vector &dqdz, Vector &fluxN, const Vector &nor, FaceElementTransformations &Tr, const IntegrationPoint &ip)
 {
     if (!constant)
     {
@@ -35,20 +30,48 @@ void NoSlipAdiabWallBdrFaceIntegrator::ComputeBdrFaceViscousFlux(const Vector &s
 
     qn *= std::sqrt(nor * nor);
 
-    fluxFunction.ComputeViscousFlux(state1, grad_mat1, flux_mat);
+    fluxFunction.ComputeViscousFlux(state1, dqdx, dqdy, dqdz,  flux_mat);
     flux_mat.Mult(nor, fluxN);
-    fluxN(num_equations - 1) = V(0) * fluxN(1) + qn;
-    if (dim > 1)
-    {
-        fluxN(num_equations - 1) += V(1) * fluxN(2);
-        if (dim > 2)
-        {
-            fluxN(num_equations - 1) += V(2) * fluxN(3);
-        }
-    }
+    fluxN(num_equations - 1) = V(0) * fluxN(1) + V(1) * fluxN(2) + V(2) * fluxN(3) + qn;
 }
 
-void NoSlipAdiabWallBdrFaceIntegrator::ComputeBdrFaceLiftingFlux(const Vector &state1, Vector &state2, Vector &fluxN, FaceElementTransformations &Tr, const IntegrationPoint &ip)
+void NoSlipAdiabWallBdrFaceIntegrator::ComputeBdrFaceViscousFlux(const Vector &state1, const Vector &state2, const Vector &dqdx, const Vector &dqdy, Vector &fluxN, const Vector &nor, FaceElementTransformations &Tr, const IntegrationPoint &ip)
+{
+    if (!constant)
+    {
+        qn_wall.SetTime(time);
+        V_wall.SetTime(time);
+
+        qn = qn_wall.Eval(Tr, ip);
+        V_wall.Eval(V, Tr, ip);
+    }
+
+    qn *= std::sqrt(nor * nor);
+
+    fluxFunction.ComputeViscousFlux(state1, dqdx, dqdy, flux_mat);
+    flux_mat.Mult(nor, fluxN);
+    fluxN(num_equations - 1) = V(0) * fluxN(1) + V(1) * fluxN(2) + qn;
+}
+
+void NoSlipAdiabWallBdrFaceIntegrator::ComputeBdrFaceViscousFlux(const Vector &state1, const Vector &state2, const Vector &dqdx, Vector &fluxN, const Vector &nor, FaceElementTransformations &Tr, const IntegrationPoint &ip)
+{
+    if (!constant)
+    {
+        qn_wall.SetTime(time);
+        V_wall.SetTime(time);
+
+        qn = qn_wall.Eval(Tr, ip);
+        V_wall.Eval(V, Tr, ip);
+    }
+
+    qn *= std::sqrt(nor * nor);
+
+    fluxFunction.ComputeViscousFlux(state1, dqdx, flux_mat);
+    flux_mat.Mult(nor, fluxN);
+    fluxN(num_equations - 1) = V(0) * fluxN(1) + qn;
+}
+
+void NoSlipAdiabWallBdrFaceIntegrator::ComputeBdrFaceLiftingFlux(const Vector &state1, Vector &fluxN, FaceElementTransformations &Tr, const IntegrationPoint &ip)
 {
     if (!constant)
     {

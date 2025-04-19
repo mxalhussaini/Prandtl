@@ -1,23 +1,16 @@
 #include "SubsonicOutflowPBdrFaceIntegrator.hpp"
-#include "Physics.hpp"
 
 namespace Prandtl
 {
 
 SubsonicOutflowPBdrFaceIntegrator::SubsonicOutflowPBdrFaceIntegrator(
-    const NumericalFlux &rsolver, const int Np,
-    std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
-    std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,
-    const real_t &time, FunctionCoefficient &p_fun, bool t_dependent)
-    : BdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, false, t_dependent),
+    std::shared_ptr<LiftingScheme> liftingScheme, const NumericalFlux &rsolver, const int Np, const real_t &time, real_t gamma, FunctionCoefficient &p_fun, bool t_dependent)
+    : BdrFaceIntegrator(liftingScheme, rsolver, Np, time, gamma, false, t_dependent),
     p_fun(p_fun) {}
 
 SubsonicOutflowPBdrFaceIntegrator::SubsonicOutflowPBdrFaceIntegrator(
-    const NumericalFlux &rsolver, const int Np,
-    std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
-    std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,
-    const real_t &time, real_t p)
-    : BdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, true, false),
+    std::shared_ptr<LiftingScheme> liftingScheme, const NumericalFlux &rsolver, const int Np, const real_t &time, real_t gamma, real_t p)
+    : BdrFaceIntegrator(liftingScheme, rsolver, Np, time, gamma, true, false),
     p(p), p_fun(std::function<real_t(const Vector&)>()) {}
 
 
@@ -37,11 +30,24 @@ void SubsonicOutflowPBdrFaceIntegrator::ComputeOuterInviscidState(const Vector &
     state2(num_equations - 1) = p * gammaM1Inverse + 0.5 * state1(0) * (vel * vel);
 }
 
-void SubsonicOutflowPBdrFaceIntegrator::ComputeBdrFaceViscousFlux(const Vector &state1, const Vector &state2, const DenseMatrix &grad_mat1,
-        Vector &fluxN, const Vector &nor, FaceElementTransformations &Tr, const IntegrationPoint &ip)
+void SubsonicOutflowPBdrFaceIntegrator::ComputeBdrFaceViscousFlux(const Vector &state1, const Vector &state2, const Vector &dqdx_, const Vector &dqdy_, const Vector &dqdz_, Vector &fluxN, const Vector &nor, FaceElementTransformations &Tr, const IntegrationPoint &ip)
 {
-    grad_mat2 = 0.0;
-    fluxFunction.ComputeViscousFlux(state2, grad_mat2, flux_mat);
+    dqdx = dqdy = dqdz = 0.0;
+    fluxFunction.ComputeViscousFlux(state2, dqdx, dqdy, dqdz, flux_mat);
+    flux_mat.Mult(nor, fluxN);
+}
+
+void SubsonicOutflowPBdrFaceIntegrator::ComputeBdrFaceViscousFlux(const Vector &state1, const Vector &state2, const Vector &dqdx_, const Vector &dqdy_, Vector &fluxN, const Vector &nor, FaceElementTransformations &Tr, const IntegrationPoint &ip)
+{
+    dqdx = dqdy = 0.0;
+    fluxFunction.ComputeViscousFlux(state2, dqdx, dqdy, flux_mat);
+    flux_mat.Mult(nor, fluxN);
+}
+
+void SubsonicOutflowPBdrFaceIntegrator::ComputeBdrFaceViscousFlux(const Vector &state1, const Vector &state2, const Vector &dqdx_, Vector &fluxN, const Vector &nor, FaceElementTransformations &Tr, const IntegrationPoint &ip)
+{
+    dqdx = 0.0;
+    fluxFunction.ComputeViscousFlux(state2, dqdx, flux_mat);
     flux_mat.Mult(nor, fluxN);
 }
 

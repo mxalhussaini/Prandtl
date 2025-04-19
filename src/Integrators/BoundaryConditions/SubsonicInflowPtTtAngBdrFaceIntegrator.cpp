@@ -1,17 +1,14 @@
 #include "SubsonicInflowPtTtAngBdrFaceIntegrator.hpp"
 #include "BasicOperations.hpp"
-#include "Physics.hpp"
 
 namespace Prandtl
 {
 
 SubsonicInflowPtTtAngBdrFaceIntegrator::SubsonicInflowPtTtAngBdrFaceIntegrator(
-    const NumericalFlux &rsolver, const int Np,
-    std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
-    std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,
-    const real_t &time, FunctionCoefficient &pt, FunctionCoefficient &Tt,
-    real_t theta, real_t phi, bool t_dependent)
-    : BdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, false, t_dependent),
+    std::shared_ptr<LiftingScheme> liftingScheme, const NumericalFlux &rsolver, const int Np,
+    const real_t &time, real_t gamma, real_t cp, FunctionCoefficient &pt, FunctionCoefficient &Tt, real_t theta, real_t phi, bool t_dependent)
+    : BdrFaceIntegrator(liftingScheme, rsolver, Np, time, gamma, false, t_dependent),
+    gammaM1_gammaInverse(gammaM1 / gamma), gamma_gammaM1Inverse(gamma * gammaM1Inverse), cp(cp),
     pt(pt), Tt(Tt), theta(theta), phi(phi)
 {
     V_comps.SetSize(dim);
@@ -30,12 +27,10 @@ SubsonicInflowPtTtAngBdrFaceIntegrator::SubsonicInflowPtTtAngBdrFaceIntegrator(
 }
 
 SubsonicInflowPtTtAngBdrFaceIntegrator::SubsonicInflowPtTtAngBdrFaceIntegrator(
-    const NumericalFlux &rsolver, const int Np,
-    std::shared_ptr<ParGridFunction> grad_x, std::shared_ptr<ParGridFunction> grad_y,
-    std::shared_ptr<ParGridFunction> grad_z, std::shared_ptr<ParFiniteElementSpace> vfes,
-    const real_t &time, real_t pt, real_t Tt,
-    real_t theta, real_t phi)
-    : BdrFaceIntegrator(rsolver, Np, grad_x, grad_y, grad_z, vfes, time, true, false),
+    std::shared_ptr<LiftingScheme> liftingScheme, const NumericalFlux &rsolver, const int Np,
+    const real_t &time, real_t gamma, real_t cp, real_t pt, real_t Tt, real_t theta, real_t phi)
+    : BdrFaceIntegrator(liftingScheme, rsolver, Np, time, gamma, true, false),
+    gammaM1_gammaInverse(gammaM1 / gamma), gamma_gammaM1Inverse(gamma * gammaM1Inverse), cp(cp),
     p0(pt), T0(Tt), theta(theta), phi(phi),
     pt(std::function<real_t(const Vector&)>()), Tt(std::function<real_t(const Vector&)>())
 {
@@ -67,7 +62,7 @@ void SubsonicInflowPtTtAngBdrFaceIntegrator::ComputeOuterInviscidState(const Vec
         T0 = Tt.Eval(Tr, ip);
     }
 
-    p = ComputePressure(state1);
+    p = ComputePressure(state1, gammaM1);
     V_sq = 2.0 * cp * T0 * (1.0 - std::pow(p / p0, gammaM1_gammaInverse));
     V_sq = std::max(0.0, V_sq);
 
@@ -84,10 +79,21 @@ void SubsonicInflowPtTtAngBdrFaceIntegrator::ComputeOuterInviscidState(const Vec
     state2(num_equations - 1) = p * gammaM1Inverse + 0.5 * state2(0) * V_sq;
 }
 
-void SubsonicInflowPtTtAngBdrFaceIntegrator::ComputeBdrFaceViscousFlux(const Vector &state1, const Vector &state2, const DenseMatrix &grad_mat1,
-        Vector &fluxN, const Vector &nor, FaceElementTransformations &Tr, const IntegrationPoint &ip)
+void SubsonicInflowPtTtAngBdrFaceIntegrator::ComputeBdrFaceViscousFlux(const Vector &state1, const Vector &state2, const Vector &dqdx, const Vector &dqdy, const Vector &dqdz, Vector &fluxN, const Vector &nor, FaceElementTransformations &Tr, const IntegrationPoint &ip)
 {
-    fluxFunction.ComputeViscousFlux(state2, grad_mat1, flux_mat);
+    fluxFunction.ComputeViscousFlux(state2, dqdx, dqdy, dqdz, flux_mat);
+    flux_mat.Mult(nor, fluxN);
+}
+
+void SubsonicInflowPtTtAngBdrFaceIntegrator::ComputeBdrFaceViscousFlux(const Vector &state1, const Vector &state2, const Vector &dqdx, const Vector &dqdy, Vector &fluxN, const Vector &nor, FaceElementTransformations &Tr, const IntegrationPoint &ip)
+{
+    fluxFunction.ComputeViscousFlux(state2, dqdx, dqdy, flux_mat);
+    flux_mat.Mult(nor, fluxN);
+}
+
+void SubsonicInflowPtTtAngBdrFaceIntegrator::ComputeBdrFaceViscousFlux(const Vector &state1, const Vector &state2, const Vector &dqdx, Vector &fluxN, const Vector &nor, FaceElementTransformations &Tr, const IntegrationPoint &ip)
+{
+    fluxFunction.ComputeViscousFlux(state2, dqdx, flux_mat);
     flux_mat.Mult(nor, fluxN);
 }
 
