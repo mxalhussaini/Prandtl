@@ -16,12 +16,10 @@ protected:
 
     Array<int> vdof_indices, ind_indx;
     Vector el_vdofs, ind_dof;
-    int num_equations, ndofs, order;
+    int num_equations, ndofs, order, dim;
     Vector state;
 public:
-    Indicator(std::shared_ptr<ParFiniteElementSpace> vfes,
-              std::shared_ptr<ParFiniteElementSpace> fes0,
-              std::shared_ptr<ParGridFunction> eta);
+    Indicator(std::shared_ptr<ParFiniteElementSpace> vfes, std::shared_ptr<ParFiniteElementSpace> fes0, std::shared_ptr<ParGridFunction> eta);
     virtual void CheckSmoothness(const Vector &x) = 0;
     virtual ~Indicator() = default;
 };
