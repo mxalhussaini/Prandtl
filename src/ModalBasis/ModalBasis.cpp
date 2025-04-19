@@ -2,12 +2,16 @@
 
 namespace Prandtl
 {
-ModalBasis::ModalBasis(DG_FECollection &fec_, Geometry::Type &gtype_,
-                       int order_, int dim_)
+ModalBasis::ModalBasis(DG_FECollection &fec_, Geometry::Type &gtype_, int order_, int dim_)
    : order(order_), dim(dim_)
 {
    // Transformation requires nodal basis
    BasisType::CheckNodal(fec_.GetBasisType());
+   
+   x = new real_t[dim];
+   L = new real_t[order + 1];
+   Li = new real_t[order + 1];
+   Di = new real_t[order + 1];
 
    IntegrationRule solpts(fec_.FiniteElementForGeometry(gtype_)->GetNodes());
    npts = solpts.GetNPoints();
@@ -15,6 +19,14 @@ ModalBasis::ModalBasis(DG_FECollection &fec_, Geometry::Type &gtype_,
 
    ComputeUBDegs(gtype_);
    ComputeVDM(solpts);
+}
+
+ModalBasis::~ModalBasis()
+{
+   delete[] x;
+   delete[] L;
+   delete[] Li;
+   delete[] Di;
 }
 
 Array2D<int> ModalBasis::GetPolyDegs()
@@ -71,6 +83,24 @@ void ModalBasis::ComputeUBDegs(Geometry::Type &gtype)
          }
          break;
       }
+      // Hex: [0, 1]^3
+      case 5:
+      {
+         int n = 0;
+         for (int i = 0; i < order + 1; i++)
+         {
+            for (int j = 0; j < order + 1; j++)
+            {
+               for (int k = 0; k < order + 1; k++)
+               {
+                  ubdegs(n, 0) = i;
+                  ubdegs(n, 1) = j;
+                  ubdegs(n, 2) = k;
+                  n++;
+               }
+            }
+         }
+      }
       default:
          MFEM_ABORT("Element type not currently supported for modal basis.")
    }
@@ -79,7 +109,6 @@ void ModalBasis::ComputeUBDegs(Geometry::Type &gtype)
 void ModalBasis::ComputeVDM(IntegrationRule &solpts)
 {
    V = DenseMatrix(npts);
-   Vector x(dim);
    // Loop through solution nodes
    for (int i = 0; i < npts; i++)
    {
@@ -90,11 +119,10 @@ void ModalBasis::ComputeVDM(IntegrationRule &solpts)
       // polynomial degree in ubdegs.
       for (int j = 0; j < dim; j++)
       {
-         Vector L(order+1);
-         Poly_1D::CalcLegendre(order, x(j), L);
+         Poly_1D::CalcLegendre(order, x[j], L);
          for (int k = 0; k < npts; k++)
          {
-            double v = L(ubdegs(k, j));
+            double v = L[ubdegs(k, j)];
             V(i,k) = (j == 0) ? v : V(i,k)*v;
          }
       }
@@ -111,6 +139,13 @@ void ModalBasis::ComputeModes(const Vector &nodes)
                "Element-wise solution vector must be of same size as the modal basis.")
 
    V_inv.Mult(nodes, umc);
+}
+
+void ModalBasis::ComputeModes(const Vector &nodes, Vector &modes)
+{
+   MFEM_ASSERT(nodes.Size() == npts,
+               "Element-wise solution vector must be of same size as the modal basis.")
+   V_inv.Mult(nodes, modes); 
 }
 
 void ModalBasis::SetModes(const Vector& modes)
@@ -146,11 +181,10 @@ real_t ModalBasis::Eval(Vector &x)
    Array2D<double> L(order + 1, dim);
    for (int i = 0; i < dim; i++)
    {
-      Vector Li(order+1);
       Poly_1D::CalcLegendre(order, x(i), Li);
       for (int j = 0; j < order + 1; j++)
       {
-         L(j, i) = Li(j);
+         L(j, i) = Li[j];
       }
    }
 
@@ -171,7 +205,6 @@ real_t ModalBasis::Eval(Vector &x)
 
 DenseMatrix ModalBasis::ComputeVDM(const IntegrationRule *ir)
 {
-   Vector x(dim);
    DenseMatrix VDM(ir->GetNPoints(), npts);
    int indx = 0;
    for (const IntegrationPoint *ip = ir->begin(); ip != ir->end(); ++ip, ++indx)
@@ -179,12 +212,11 @@ DenseMatrix ModalBasis::ComputeVDM(const IntegrationRule *ir)
       ip->Get(x, dim);
       for (int j = 0; j < dim; j++)
       {
-         Vector L(order+1);
-         Poly_1D::CalcLegendre(order, x(j), L);
+         Poly_1D::CalcLegendre(order, x[j], L);
 
          for (int k = 0; k < npts; k++)
          {
-            double v = L(ubdegs(k, j));
+            double v = L[ubdegs(k, j)];
 
             VDM(indx,k) = (j == 0) ? v : VDM(indx,k) * v;
          }
@@ -204,13 +236,11 @@ Vector ModalBasis::EvalGrad(Vector &x)
    Array2D<double> D(order + 1, dim);
    for (int i = 0; i < dim; i++)
    {
-      Vector Li(order+1);
-      Vector Di(order+1);
       Poly_1D::CalcLegendre(order, x(i), Li, Di);
       for (int j = 0; j < order + 1; j++)
       {
-         L(j, i) = Li(j);
-         D(j, i) = Di(j);
+         L(j, i) = Li[j];
+         D(j, i) = Di[j];
       }
    }
 
