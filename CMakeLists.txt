@@ -1,24 +1,12 @@
 cmake_minimum_required(VERSION 3.15)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # set(CMAKE_CXX_COMPILER ${MPICXX})
 # set(MPI_CXX_INCLUDE_PATH "")
 # set(MPI_CXX_LIBRARIES "")
-
-# add_definitions(-DHYPERBOLIC)
-add_definitions(-DUSE_FILTER)
-add_definitions(-DPARABOLIC)
-add_definitions(-DSUBCELL_FV_BLENDING)
-
-# # Add AddressSanitizer flags
-# set(SANITIZER_FLAGS "-fsanitize=address -g -O1")
-
-# # Apply sanitizer flags to compile and link phases
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZER_FLAGS}")
-# set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} ${SANITIZER_FLAGS}")
 
 project(Prandtl)
 
@@ -30,13 +18,33 @@ message(STATUS "MPI CXX COMPILER: ${MPI_CXX_COMPILER}")
 message(STATUS "MPI INCLUDE PATH: ${MPI_INCLUDE_PATH}")
 message(STATUS "MPI LIBRARIES: ${MPI_CXX_LIBRARIES}")
 
+# Set the CONFIG_FILE variable, with a default if not provided
+set(CONFIG_FILE "${CONFIG_FILE}" CACHE STRING "Path to config file")
+
+message(STATUS "CONFIG_FILE = ${CONFIG_FILE}")
+
+execute_process(
+    COMMAND python3
+            "${CMAKE_CURRENT_SOURCE_DIR}/parse_compile_config.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/${CONFIG_FILE}"
+            # "${CMAKE_BINARY_DIR}/copied_config.json"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    OUTPUT_VARIABLE COMPILE_DEFINES
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+string(REPLACE "\n" ";" COMPILE_DEFINES_LIST "${COMPILE_DEFINES}")
+
 add_executable(${PROJECT_NAME} main.cpp)
+
+target_compile_definitions(${PROJECT_NAME}
+    PRIVATE ${COMPILE_DEFINES_LIST}
+)
 
 target_sources(${PROJECT_NAME}
     PRIVATE src/Operators/DGSEMOperator.cpp 
     PRIVATE src/Integrators/DGSEMIntegrator/DGSEMIntegrator.cpp
-    PRIVATE src/Integrators/DGSEMIntegrator/Lifting/LiftingScheme.cpp
-    PRIVATE src/Integrators/DGSEMIntegrator/Lifting/LiftingBR1/LiftingBR1.cpp
+    PRIVATE src/Integrators/Lifting/LiftingScheme.cpp
+    PRIVATE src/Integrators/Lifting/LiftingBR1/LiftingBR1.cpp
     PRIVATE src/RiemannSolvers/RoeFlux.cpp
     PRIVATE src/RiemannSolvers/LaxFriedrichsFlux.cpp
     PRIVATE src/RiemannSolvers/HLLFlux.cpp
@@ -63,12 +71,6 @@ target_sources(${PROJECT_NAME}
     PRIVATE src/Operators/NonlinearForm/DGSEMNonlinearForm.cpp
     )
 
-# add_subdirectory(${CMAKE_SOURCE_DIR}/libs/mfem-4.7)
-# add_subdirectory(${CMAKE_SOURCE_DIR}/libs/hypre-2.31.0/src)
-# add_subdirectory(${CMAKE_SOURCE_DIR}/libs/metis-5.1.0)
-
-
-
 target_include_directories(${PROJECT_NAME}
     PUBLIC ${CMAKE_SOURCE_DIR}/libs/mfem
     PUBLIC ${CMAKE_SOURCE_DIR}/libs/hypre/src/hypre/include
@@ -79,8 +81,8 @@ target_include_directories(${PROJECT_NAME}
     PUBLIC ${CMAKE_SOURCE_DIR}/src/BasicOperations
     PUBLIC ${CMAKE_SOURCE_DIR}/src/Filters
     PUBLIC ${CMAKE_SOURCE_DIR}/src/Integrators/BoundaryConditions
-    PUBLIC ${CMAKE_SOURCE_DIR}/src/Integrators/DGSEMIntegrator/Lifting/LiftingBR1
-    PUBLIC ${CMAKE_SOURCE_DIR}/src/Integrators/DGSEMIntegrator/Lifting
+    PUBLIC ${CMAKE_SOURCE_DIR}/src/Integrators/Lifting/LiftingBR1
+    PUBLIC ${CMAKE_SOURCE_DIR}/src/Integrators/Lifting
     PUBLIC ${CMAKE_SOURCE_DIR}/src/Integrators/DGSEMIntegrator
     PUBLIC ${CMAKE_SOURCE_DIR}/src/ModalBasis
     PUBLIC ${CMAKE_SOURCE_DIR}/src/Physics
@@ -89,6 +91,9 @@ target_include_directories(${PROJECT_NAME}
     PUBLIC ${CMAKE_SOURCE_DIR}/src/Simulation
     PUBLIC ${CMAKE_SOURCE_DIR}/src/Include
     PUBLIC ${CMAKE_SOURCE_DIR}/src/Fluxes
+    PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/NavierStokes/2D/LidDrivenCavity
+    PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/2D/DoubleMachReflection
+    PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/2D/KelvinHelmholtzInstability
     )
 
 target_link_directories(${PROJECT_NAME}
