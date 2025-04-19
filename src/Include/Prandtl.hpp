@@ -33,6 +33,5 @@
 #include "Physics.hpp"
 #include "Limiter.hpp"
 #include "PerssonPeraireIndicator.hpp"
-#include "Simulation.hpp"
 #include "NumericalFlux.hpp"
 #include "NavierStokesFlux.hpp"
