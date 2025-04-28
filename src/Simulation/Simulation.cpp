@@ -241,6 +241,12 @@ void Simulation::LoadConfig(const std::string &config_file_path)
         }
     }
 
+    if (mesh->GetNE() < Mpi::WorldSize())
+    {
+        std::cerr << "Error: Number of elements is less than number of processors." << std::endl;
+        return;
+    }
+
     if (runtime.contains("mesh_ordering"))
     {
         if (runtime["mesh_ordering"].get<std::string>() == "Hilbert")
