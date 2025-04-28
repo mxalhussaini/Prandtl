@@ -33,6 +33,7 @@ execute_process(
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 string(REPLACE "\n" ";" COMPILE_DEFINES_LIST "${COMPILE_DEFINES}")
+message(STATUS "COMPILE_DEFINES_LIST = ${COMPILE_DEFINES_LIST}")
 
 add_executable(${PROJECT_NAME} main.cpp)
 
@@ -92,7 +93,18 @@ target_include_directories(${PROJECT_NAME}
     PUBLIC ${CMAKE_SOURCE_DIR}/src/Include
     PUBLIC ${CMAKE_SOURCE_DIR}/src/Fluxes
     PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/NavierStokes/2D/LidDrivenCavity
+    PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/1D/SodShockTube
+    PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/1D/ModifiedSodShockTube
+    PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/1D/LaxShockTube
+    PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/1D/LeBlancShockTube
+    PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/1D/Problem123
+    PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/1D/WoodwardColellaBlastWave
+    PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/1D/WoodwardColellaBlastWaveLeft
+    PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/1D/WoodwardColellaBlastWaveRight
+    PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/1D/WoodwardColellaBlastWaveCollision
+    PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/1D/ShuOsherShock
     PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/2D/DoubleMachReflection
+    PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/2D/ForwardFacingStep
     PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/2D/KelvinHelmholtzInstability
     )
 
