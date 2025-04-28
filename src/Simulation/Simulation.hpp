@@ -41,6 +41,8 @@ private:
 
     real_t V_sq;
 
+    real_t alpha_max;
+
     Array<int> mesh_ordering;
     std::shared_ptr<ParMesh> pmesh;
 

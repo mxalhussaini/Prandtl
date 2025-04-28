@@ -2,7 +2,20 @@
 #include "ConditionFactory.hpp"
 
 #include "LidDrivenCavity.hpp"
+
+#include "SodShockTube.hpp"
+#include "ModifiedSodShockTube.hpp"
+#include "LaxShockTube.hpp"
+#include "LeBlancShockTube.hpp"
+#include "Problem123.hpp"
+#include "WoodwardColellaBlastWave.hpp"
+#include "WoodwardColellaBlastWaveLeft.hpp"
+#include "WoodwardColellaBlastWaveRight.hpp"
+#include "WoodwardColellaBlastWaveCollision.hpp"
+#include "ShuOsherShock.hpp"
+
 #include "DoubleMachReflection.hpp"
+#include "ForwardFacingStep.hpp"
 #include "KelvinHelmholtzInstability.hpp"
 
 #include "json.hpp"
@@ -98,7 +111,10 @@ void Simulation::LoadConfig(const std::string &config_file_path)
 
     clock_simulation = runtime["clock_simulation"].get<bool>();
     variable_dt = runtime["variable_dt"].get<bool>();
-    dt = runtime.value("dt", 1e-4);
+    if (runtime.contains("dt"))
+    {
+        dt = runtime.value("dt", 1e-4);
+    }
     t_final = runtime["final_time"].get<real_t>();
 
     physicsConstants = std::make_shared<PhysicsConstants>(
@@ -195,13 +211,34 @@ void Simulation::LoadConfig(const std::string &config_file_path)
     }
 
     Mesh *mesh;
-    if (dim == 1)
+    mesh = new Mesh(runtime["mesh_file"].get<std::string>());
+    bool periodic;
+    if (runtime.contains("periodic"))
     {
-        
+        periodic = runtime["periodic"].get<bool>();
     }
     else
     {
-        mesh = new Mesh(runtime["mesh_file"].get<std::string>());
+        periodic = false;
+    }
+
+    if (dim == 1 && !periodic)
+    {
+        Array<int> left;
+        Array<int> right;
+        left.Append(1);
+        right.Append(2);
+        mesh->bdr_attribute_sets.SetAttributeSet("left", left);
+        mesh->bdr_attribute_sets.SetAttributeSet("right", right);
+    }
+
+    if (runtime.contains("ser_ref_levels"))
+    {
+        ref_levels = runtime.value("ser_ref_levels", 0);
+        for (int lev = 0; lev < ref_levels; lev++)
+        {
+            mesh->UniformRefinement();
+        }
     }
 
     if (runtime.contains("mesh_ordering"))
@@ -225,9 +262,9 @@ void Simulation::LoadConfig(const std::string &config_file_path)
     pmesh = std::make_shared<ParMesh>(MPI_COMM_WORLD, *mesh);
     mesh->Clear();
 
-    if (runtime.contains("ref_levels"))
+    if (runtime.contains("par_ref_levels"))
     {
-        ref_levels = runtime.value("ref_levels", 0);
+        ref_levels = runtime.value("par_ref_levels", 0);
         for (int lev = 0; lev < ref_levels; lev++)
         {
             pmesh->UniformRefinement();
@@ -253,9 +290,18 @@ void Simulation::LoadConfig(const std::string &config_file_path)
 
     Geometry::Type gtype = vfes->GetFE(0)->GetGeomType();
 
+    if (runtime.contains("alpha_max"))
+    {
+        alpha_max = runtime["alpha_max"].get<real_t>();
+    }
+    else
+    {
+        alpha_max = 0.5;
+    }
+
     NS = std::make_unique<DGSEMOperator>(vfes, fes0, pmesh, eta, alpha, dudx, dudy, dudz,
         std::make_unique<Prandtl::DGSEMIntegrator>(pmesh, fes0, alpha, liftingScheme, *numericalFlux, order + 1),
-        std::make_unique<Prandtl::PerssonPeraireIndicator>(vfes, fes0, eta, std::make_shared<Prandtl::ModalBasis>(*fec, gtype, order, dim), physicsConstants->gamma), physicsConstants->gamma);
+        std::make_unique<Prandtl::PerssonPeraireIndicator>(vfes, fes0, eta, std::make_shared<Prandtl::ModalBasis>(*fec, gtype, order, dim), physicsConstants->gamma), physicsConstants->gamma, alpha_max);
 
 
     if (runtime["conditions"].contains("boundary_conditions"))
@@ -266,6 +312,11 @@ void Simulation::LoadConfig(const std::string &config_file_path)
         for (auto& boundary : boundaries.items())
         {
             std::string boundaryName = boundary.key();
+            if (!pmesh->bdr_attribute_sets.AttributeSetExists(boundaryName))
+            {
+                // This rank has no faces with this boundary name; skip
+                continue;
+            }
             bdr_marker_vector.push_back(Array<int>(max_bdr_attr));
             set_marker = pmesh->bdr_attribute_sets.GetAttributeSetMarker(boundaryName);
             for (int b = 0; b < max_bdr_attr; b++)
@@ -337,18 +388,35 @@ void Simulation::LoadConfig(const std::string &config_file_path)
                     signature = bc_props["heat"]["signature"].get<int>();
                     if (signature == 0)
                     {
-                        heatBC = std::make_shared<FunctionCoefficient>(ConditionFactory::Instance().GetScalarFunctionBoundaryCondition0(heatBC_key)());
+                        if (td)
+                        {
+                            heatBC = std::make_shared<FunctionCoefficient>(ConditionFactory::Instance().GetScalarTDFunctionBoundaryCondition0(heatBC_key)());
+                        }
+                        else
+                        {
+                            heatBC = std::make_shared<FunctionCoefficient>(ConditionFactory::Instance().GetScalarFunctionBoundaryCondition0(heatBC_key)());
+                        }
                     }
                     else if (signature == 1)
                     {
                         real_t x1 = bc_props["heat"]["params"].value("x1", 0.0);
-                        heatBC = std::make_shared<FunctionCoefficient>(ConditionFactory::Instance().GetScalarFunctionBoundaryCondition1(heatBC_key)(x1));
+                        if (td)
+                            heatBC = std::make_shared<FunctionCoefficient>(ConditionFactory::Instance().GetScalarTDFunctionBoundaryCondition1(heatBC_key)(x1));
+                        else
+                        {
+                            heatBC = std::make_shared<FunctionCoefficient>(ConditionFactory::Instance().GetScalarFunctionBoundaryCondition1(heatBC_key)(x1));
+                        }
                     }
                     else if (signature == 2)
                     {
                         real_t x1 = bc_props["heat"]["params"].value("x1", 0.0);
                         real_t x2 = bc_props["heat"]["params"].value("x2", 0.0);
-                        heatBC = std::make_shared<FunctionCoefficient>(ConditionFactory::Instance().GetScalarFunctionBoundaryCondition2(heatBC_key)(x1, x2));
+                        if (td)
+                            heatBC = std::make_shared<FunctionCoefficient>(ConditionFactory::Instance().GetScalarTDFunctionBoundaryCondition2(heatBC_key)(x1, x2));
+                        else
+                        {
+                            heatBC = std::make_shared<FunctionCoefficient>(ConditionFactory::Instance().GetScalarFunctionBoundaryCondition2(heatBC_key)(x1, x2));
+                        }
                     }
                     else
                     {
@@ -372,6 +440,73 @@ void Simulation::LoadConfig(const std::string &config_file_path)
             else if (type == "supersonic-outflow")
             {
                 NS->AddBdrFaceIntegrator(new SupersonicOutflowBdrFaceIntegrator(liftingScheme, *numericalFlux, order + 1, NS->GetTimeRef(), physicsConstants->gamma), bdr_marker_vector.back());
+            }
+            else if (type == "supersonic-inflow")
+            {
+                if (bc_props.contains("vector"))
+                {
+                    std::string state_key = bc_props["vector"].get<std::string>();
+                    NS->AddBdrFaceIntegrator(new SupersonicInflowBdrFaceIntegrator(liftingScheme, *numericalFlux, order + 1, NS->GetTimeRef(), physicsConstants->gamma,
+                        ConditionFactory::Instance().GetVectorBoundaryCondition(state_key)), bdr_marker_vector.back());
+                }
+                else
+                {
+                    std::string state_key = bc_props["function"].get<std::string>();
+                    signature = bc_props["signature"].get<int>();
+                    std::shared_ptr<VectorFunctionCoefficient> stateBC;
+                    bool td;
+                    if (bc_props.contains("time_dependent"))
+                    {
+                        td = bc_props["time_dependent"].get<bool>();
+                    }
+                    else
+                    {
+                        td = false;
+                    }
+
+                    if (signature == 0)
+                    {
+                        if (td)
+                        {
+                            stateBC = std::make_shared<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetVectorTDFunctionBoundaryCondition0(state_key)());
+                        }
+                        else
+                        {
+                            stateBC = std::make_shared<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetVectorFunctionBoundaryCondition0(state_key)());
+                        }
+                        
+                    }
+                    else if (signature == 1)
+                    {
+                        real_t x1 = bc_props["params"].value("x1", 0.0);
+                        if (td)
+                            stateBC = std::make_shared<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetVectorTDFunctionBoundaryCondition1(state_key)(x1));
+                        else
+                        {
+                            stateBC = std::make_shared<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetVectorFunctionBoundaryCondition1(state_key)(x1));
+                        }
+                    }
+                    else if (signature == 2)
+                    {
+                        real_t x1 = bc_props["params"].value("x1", 0.0);
+                        real_t x2 = bc_props["params"].value("x2", 0.0);
+                        if (td)
+                        {
+                            stateBC = std::make_shared<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetVectorTDFunctionBoundaryCondition2(state_key)(x1, x2));
+                        }
+                        else
+                        {
+                            stateBC = std::make_shared<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetVectorFunctionBoundaryCondition2(state_key)(x1, x2));
+                        }
+                    
+                    }
+                    else
+                    {
+                        std::cerr << "Error: Invalid boundary condition signature." << std::endl;
+                        return;
+                    }
+                    NS->AddBdrFaceIntegrator(new SupersonicInflowBdrFaceIntegrator(liftingScheme, *numericalFlux, order + 1, NS->GetTimeRef(), physicsConstants->gamma, *stateBC, td), bdr_marker_vector.back());
+                }
             }
             else if (type == "specified-state")
             {
@@ -398,18 +533,38 @@ void Simulation::LoadConfig(const std::string &config_file_path)
 
                     if (signature == 0)
                     {
-                        stateBC = std::make_shared<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetVectorTDFunctionBoundaryCondition0(state_key)());
+                        if (td)
+                        {
+                            stateBC = std::make_shared<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetVectorTDFunctionBoundaryCondition0(state_key)());
+                        }
+                        else
+                        {
+                            stateBC = std::make_shared<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetVectorFunctionBoundaryCondition0(state_key)());
+                        }
+                        
                     }
                     else if (signature == 1)
                     {
                         real_t x1 = bc_props["params"].value("x1", 0.0);
-                        stateBC = std::make_shared<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetVectorTDFunctionBoundaryCondition1(state_key)(x1));
+                        if (td)
+                            stateBC = std::make_shared<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetVectorTDFunctionBoundaryCondition1(state_key)(x1));
+                        else
+                        {
+                            stateBC = std::make_shared<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetVectorFunctionBoundaryCondition1(state_key)(x1));
+                        }
                     }
                     else if (signature == 2)
                     {
                         real_t x1 = bc_props["params"].value("x1", 0.0);
                         real_t x2 = bc_props["params"].value("x2", 0.0);
-                        stateBC = std::make_shared<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetVectorTDFunctionBoundaryCondition2(state_key)(x1, x2));
+                        if (td)
+                        {
+                            stateBC = std::make_shared<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetVectorTDFunctionBoundaryCondition2(state_key)(x1, x2));
+                        }
+                        else
+                        {
+                            stateBC = std::make_shared<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetVectorFunctionBoundaryCondition2(state_key)(x1, x2));
+                        }
                     
                     }
                     else
@@ -473,7 +628,7 @@ void Simulation::LoadConfig(const std::string &config_file_path)
             }
             pd->RegisterField("Pressure", p.get());
             pd->RegisterField("Blending Coeff", alpha.get());
-            pd->SetLevelsOfDetail(order);
+            // pd->SetLevelsOfDetail(order);
             pd->SetDataFormat(VTKFormat::BINARY);
             pd->SetHighOrderOutput(true);
         }
@@ -601,7 +756,7 @@ void Simulation::Run()
         }
 
         // Visualize the solution?
-        if (visualize && ti % vis_steps == 0)
+        if (visualize && (done || ti % vis_steps == 0))
         {
             for (int i = 0; i < num_dofs_scalar; i++)
             {
