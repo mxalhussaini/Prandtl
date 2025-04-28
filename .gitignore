@@ -74,7 +74,13 @@ Temporary Items
 
 out/build/
 
-TestCases/*/*/*/Paraview/
+TestCases/Euler/1D/*/Paraview/
+TestCases/Euler/2D/*/Paraview/
+TestCases/Euler/3D/*/Paraview/
+
+TestCases/NavierStokes/1D/*/Paraview/
+TestCases/NavierStokes/2D/*/Paraview/
+TestCases/NavierStokes/3D/*/Paraview/
 
 # libs/metis-5.1.0/
 
