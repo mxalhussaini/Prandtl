@@ -4,7 +4,9 @@
 cd out/build
 
 if [ -z "$1" ]; then
-    mpiexec -n 5 Prandtl
+    mpiexec -n 4 Prandtl
+    #ibrun Prandtl
 else
-    mpiexec -n 5 Prandtl "$1"
+    mpiexec -n 4 Prandtl "$1"
+    #ibrun Prandtl "$1"
 fi

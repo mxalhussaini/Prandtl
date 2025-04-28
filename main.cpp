@@ -1,11 +1,8 @@
-// #include "Prandtl.hpp"
 #include "Simulation.hpp"
 
 using namespace mfem;
 
 // std::function<void(const Vector&, Vector&)> Cylinder(real_t Ma, real_t Re, real_t gamma, real_t mu, real_t D);;
-// std::function<void(const Vector&, Vector&)> Sod1D(real_t gamma);
-// std::function<void(const Vector&, Vector&)> quiescent_if(int dim);
 // std::function<void(const Vector&, Vector&)> triple_point_if(real_t gammaM1Inverse);
 // std::function<void(const Vector&, Vector&)> airfoil_if(real_t gammaM1Inverse);
 // std::function<void(const Vector&, Vector&)> ramp_if(real_t gammaM1Inverse);
@@ -18,9 +15,25 @@ int main(int argc, char* argv[])
     Prandtl::Simulation &sim = Prandtl::Simulation::SimulationCreate();
     if (argc < 2)
     {
-        sim.LoadConfig("../../TestCases/Euler/2D/KelvinHelmholtzInstability/config.json");
-        // sim.LoadConfig("../../TestCases/NavierStokes/2D/LidDrivenCavity/config.json");
-        // sim.LoadConfig("../../TestCases/Euler/2D/DoubleMachReflection/config.json");   
+        // 1D Euler test cases 
+        sim.LoadConfig("../../TestCases/Euler/1D/SodShockTube/config.json");
+        // sim.LoadConfig("../../TestCases/Euler/1D/ModifiedSodShockTube/config.json");
+        // sim.LoadConfig("../../TestCases/Euler/1D/LaxShockTube/config.json");
+        // sim.LoadConfig("../../TestCases/Euler/1D/LeBlancShockTube/config.json");
+        // sim.LoadConfig("../../TestCases/Euler/1D/ShuOsherShock/config.json");
+        // sim.LoadConfig("../../TestCases/Euler/1D/Problem123/config.json");
+        // sim.LoadConfig("../../TestCases/Euler/1D/WoodwardColellaBlastWave/config.json");
+        // sim.LoadConfig("../../TestCases/Euler/1D/WoodwardColellaBlastWaveLeft/config.json");
+        // sim.LoadConfig("../../TestCases/Euler/1D/WoodwardColellaBlastWaveRight/config.json");
+        // sim.LoadConfig("../../TestCases/Euler/1D/WoodwardColellaBlastWaveCollision/config.json");
+        
+        // 2D Euler test cases
+        // sim.LoadConfig("../../TestCases/Euler/2D/DoubleMachReflection/config.json");
+        // sim.LoadConfig("../../TestCases/Euler/2D/ForwardFacingStep/config.json");
+        // sim.LoadConfig("../../TestCases/Euler/2D/KelvinHelmholtzInstability/config.json");
+
+        // 2D Navier-Stokes test cases
+        // sim.LoadConfig("../../TestCases/NavierStokes/2D/LidDrivenCavity/config.json"); 
     }
     else
     {
@@ -422,42 +435,6 @@ int main(int argc, char* argv[])
 //     };
 // }
 
-// std::function<void(const Vector&, Vector&)> Sod1D(real_t gamma)
-// {
-//     return [gamma](const Vector &x, Vector &y)
-//     {
-//         real_t density, velocity_x, pressure, energy;
-//         MFEM_ASSERT(x.Size() == 1, "");
-
-//         density = 1.0;
-//         velocity_x = 0.0;
-//         pressure = 1000.0;
-
-//         energy = pressure / (1.4 - 1.0) + density * 0.5 * (velocity_x * velocity_x);
-
-//         y(0) = density;
-//         y(1) = density * velocity_x;
-//         y(2) = energy;
-//     };
-// }
-
-// std::function<void(const Vector&, Vector&)> quiescent_if(int dim)
-// {
-//     return [dim] (const Vector &x, Vector &y)
-//     {
-//         y(0) = 1.0;
-//         y(1) = 0.0;
-//         if (dim > 1)
-//         {
-//             y(2) = 0.0;
-//             if (dim > 2)
-//             {
-//                 y(3) = 0.0;
-//             }
-//         }
-//         y(dim + 1) = 1.0 ;
-//     };
-// }
 
 
 // std::function<void(const Vector&, Vector&)> GetMovingVortexInit(
