@@ -3,7 +3,6 @@
 using namespace mfem;
 
 // std::function<void(const Vector&, Vector&)> Cylinder(real_t Ma, real_t Re, real_t gamma, real_t mu, real_t D);;
-// std::function<void(const Vector&, Vector&)> triple_point_if(real_t gammaM1Inverse);
 // std::function<void(const Vector&, Vector&)> airfoil_if(real_t gammaM1Inverse);
 // std::function<void(const Vector&, Vector&)> ramp_if(real_t gammaM1Inverse);
 // std::function<void(const Vector&, Vector&)> GetMovingVortexInit(const real_t radius, const real_t Minf, const real_t beta,
@@ -30,7 +29,9 @@ int main(int argc, char* argv[])
         // 2D Euler test cases
         // sim.LoadConfig("../../TestCases/Euler/2D/DoubleMachReflection/config.json");
         // sim.LoadConfig("../../TestCases/Euler/2D/ForwardFacingStep/config.json");
-        // sim.LoadConfig("../../TestCases/Euler/2D/KelvinHelmholtzInstability/config.json");
+        // sim.LoadConfig("../../TestCases/Euler/2D/BackwardFacingStep/config.json");
+        // sim.LoadConfig("../../TestCases/Euler/2D/TriplePointShockInteraction/config.json");
+        // sim.LoadConfig("../../TestCases/Euler/2D/KelvinHelmholtzInstability/config.json");;
 
         // 2D Navier-Stokes test cases
         // sim.LoadConfig("../../TestCases/NavierStokes/2D/LidDrivenCavity/config.json"); 
@@ -485,36 +486,6 @@ int main(int argc, char* argv[])
 //         y(2) = den * velY;
 //         y(3) = den * energy;
 //    };
-// }
-
-// std::function<void(const Vector&, Vector&)> triple_point_if(real_t gammaM1Inverse)
-// {
-//     return [gammaM1Inverse] (const Vector &x, Vector &y)
-//     {
-//         MFEM_ASSERT(x.Size() == 2, "DMR is a 2D problem");
-
-//         if (x(0) <= 1.0 && x(1) <= 3.0)
-//         {
-//             y(0) = 1.0;
-//             y(1) = 0.0;
-//             y(2) = 0.0;
-//             y(3) = 1.0 * gammaM1Inverse;
-//         }
-//         else if (x(0) > 1.0 && x(1) <= 1.5)
-//         {
-//             y(0) = 1.0;
-//             y(1) = 0.0;
-//             y(2) = 0.0;
-//             y(3) = 0.1 * gammaM1Inverse;
-//         }
-//         else
-//         {
-//             y(0) = 0.125;
-//             y(1) = 0.0;
-//             y(2) = 0.0;
-//             y(3) = 0.1 * gammaM1Inverse;
-//         }
-//     };  
 // }
 
 // std::function<void(const Vector&, Vector&)> airfoil_if(real_t gammaM1Inverse)

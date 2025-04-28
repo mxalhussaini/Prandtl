@@ -44,7 +44,6 @@ std::function<void(const Vector&, Vector&)> KelvinHelmholtzInstabilyIC(real_t ga
 }
 
 // Registration helper that automatically registers these functions
-// along with associated boundary marker arrays.
 struct RegisterKelvinHelmholtzInstability
 {
     RegisterKelvinHelmholtzInstability()

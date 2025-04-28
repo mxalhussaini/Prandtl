@@ -35,7 +35,6 @@ std::function<void(const Vector&, Vector&)> WoodwardColellaBlastWaveLeftIC(real_
 }
 
 // Registration helper that automatically registers these functions
-// along with associated boundary marker arrays.
 struct RegisterWoodwardColellaBlastWaveLeft
 {
     RegisterWoodwardColellaBlastWaveLeft()

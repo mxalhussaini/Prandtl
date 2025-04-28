@@ -23,7 +23,6 @@ std::function<void(const Vector&, Vector&)> ForwardFacingStepIC(real_t gammaM1In
 const BC_Vector ForwardFacingStepLeftBCVector({1.4, 1.4 * 3.0, 0.0, 1.0 / (1.4 - 1.0) + 0.5 * 1.4 * 3.0 * 3.0});
 
 // Registration helper that automatically registers these functions
-// along with associated boundary marker arrays.
 struct RegisterForwardFacingStep
 {
     RegisterForwardFacingStep()

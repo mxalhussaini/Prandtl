@@ -57,7 +57,6 @@ std::function<void(const Vector&, real_t, Vector&)> DoubleMachReflectionTopBCFun
 const BC_Vector DoubleMachReflectionLeftBottom1BCVector({8.0, 8.0 * 7.144709581221619, -8.0 * 4.125, 116.5 * 1.0 / (1.4 - 1.0) + 0.5 * 8.0 * (7.144709581221619 * 7.144709581221619 + 4.125 * 4.125)}); 
 
 // Registration helper that automatically registers these functions
-// along with associated boundary marker arrays.
 struct RegisterDoubleMachReflection
 {
     RegisterDoubleMachReflection()

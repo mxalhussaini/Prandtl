@@ -29,7 +29,6 @@ std::function<void(const Vector&, Vector&)> LeBlancShockTubeIC(real_t gamma)
 }
 
 // Registration helper that automatically registers these functions
-// along with associated boundary marker arrays.
 struct RegisterLeBlancShockTube
 {
     RegisterLeBlancShockTube()

@@ -16,6 +16,8 @@
 
 #include "DoubleMachReflection.hpp"
 #include "ForwardFacingStep.hpp"
+#include "BackwardFacingStep.hpp"
+#include "TriplePointShockInteraction.hpp"
 #include "KelvinHelmholtzInstability.hpp"
 
 #include "json.hpp"

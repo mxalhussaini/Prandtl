@@ -35,7 +35,6 @@ std::function<void(const Vector&, Vector&)> Problem123IC(real_t gamma)
 }
 
 // Registration helper that automatically registers these functions
-// along with associated boundary marker arrays.
 struct RegisterProblem123
 {
     RegisterProblem123()
