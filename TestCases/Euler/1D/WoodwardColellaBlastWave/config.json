@@ -9,8 +9,8 @@
     "runTime":
     {
         "order": 3,
-        "dim" : 2, 
-        "num_equations": 4,
+        "dim" : 1, 
+        "num_equations": 3,
 
         "precision": 15,
 
@@ -18,25 +18,21 @@
         "paraview": true,
         "visit": false,
         "vis_steps": 100,
-        "output_file_path" : "../../TestCases/Euler/2D/KelvinHelmholtzInstability",
+        "output_file_path" : "../../TestCases/Euler/1D/WoodwardColellaBlastWave",
 
         "nancheck": false,
 
         "clock_simulation": true,
         "variable_dt": true,
         "cfl": 1.0,
-        "dt": 1e-4,
-        "final_time": 2.0,
+        "final_time": 0.038,
 
-        "Pr": 0.72,
-        "mu": 0.02,
         "R_gas": 287.05,
         "gamma" : 1.4,
 
-        "ser_ref_levels": 3,
-        "par_ref_levels": 2,
+        "ser_ref_levels": 8,
 
-        "mesh_file": "../../TestCases/Euler/2D/KelvinHelmholtzInstability/KelvinHelmholtzInstability.mesh",
+        "mesh_file": "../../TestCases/Euler/1D/WoodwardColellaBlastWave/WoodwardColellaBlastWave.mesh",
         "conditions":
         {
             "initial_conditions":
@@ -44,9 +40,20 @@
                 "signature": 1,
                 "params":
                 {
-                    "x1": 2.5
+                    "x1": 1.4
                 },
-                "function": "KelvinHelmholtzInstabilityIC"
+                "function": "WoodwardColellaBlastWaveIC"
+            },
+            "boundary_conditions":
+            {
+                "left":
+                {
+                    "type": "slip"
+                },
+                "right":
+                {
+                    "type": "slip"
+                }
             }
         },
         "numerical_flux": "Chandrashekar",
