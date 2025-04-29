@@ -28,13 +28,10 @@
         "dt": 1e-4,
         "final_time": 2.0,
 
-        "Pr": 0.72,
-        "mu": 0.02,
         "R_gas": 287.05,
         "gamma" : 1.4,
 
-        "mesh_ordering": "Hilbert",
-        "ref_levels": 0,
+        "par_ref_levels": 1,
 
         "mesh_file": "../../TestCases/Euler/2D/DoubleMachReflection/DoubleMachReflection.msh",
         "conditions":

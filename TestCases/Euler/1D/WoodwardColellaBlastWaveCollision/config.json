@@ -30,6 +30,7 @@
         "R_gas": 287.05,
         "gamma" : 1.4,
 
+        "alpha_max": 0.75,
         "ser_ref_levels": 5,
 
         "mesh_file": "../../TestCases/Euler/1D/WoodwardColellaBlastWaveCollision/WoodwardColellaBlastWaveCollision.mesh",
