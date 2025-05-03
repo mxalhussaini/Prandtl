@@ -16,6 +16,9 @@ using namespace mfem;
 using IC_Function0 = std::function<std::function<void(const Vector&, Vector&)>()>;
 using IC_Function1 = std::function<std::function<void(const Vector&, Vector&)>(real_t)>;
 using IC_Function2 = std::function<std::function<void(const Vector&, Vector&)>(real_t, real_t)>;
+using IC_Function3 = std::function<std::function<void(const Vector&, Vector&)>(real_t, real_t, real_t)>;
+using IC_Function4 = std::function<std::function<void(const Vector&, Vector&)>(real_t, real_t, real_t, real_t)>;
+using IC_Function5 = std::function<std::function<void(const Vector&, Vector&)>(real_t, real_t, real_t, real_t, real_t)>;
 
 // Aliases for boundary condition function functions, vectors, and scalars.
 using BC_VectorFunction0 = std::function<std::function<void(const Vector&, Vector&)>()>;
@@ -65,6 +68,24 @@ public:
         initialConditions2_[key] = func;
     }
 
+    // Registration of initial condition function with three parameters
+    void RegisterInitialCondition3(const std::string &key, IC_Function3 func)
+    {
+        initialConditions3_[key] = func;
+    }
+
+    // Registration of initial condition function with four parameters
+    void RegisterInitialCondition4(const std::string &key, IC_Function4 func)
+    {
+        initialConditions4_[key] = func;
+    }
+
+    // Registration of initial condition function with five parameters
+    void RegisterInitialCondition5(const std::string &key, IC_Function5 func)
+    {
+        initialConditions5_[key] = func;
+    }
+
     // Lookup initial condition function
     IC_Function0 GetInitialCondition0(const std::string &key)
     {
@@ -81,6 +102,24 @@ public:
     IC_Function2 GetInitialCondition2(const std::string &key)
     {
         return initialConditions2_.at(key);
+    }
+
+    // Lookup initial condition function with three parameters
+    IC_Function3 GetInitialCondition3(const std::string &key)
+    {
+        return initialConditions3_.at(key);
+    }
+
+    // Lookup initial condition function with four parameters
+    IC_Function4 GetInitialCondition4(const std::string &key)
+    {
+        return initialConditions4_.at(key);
+    }
+
+    // Lookup initial condition function with five parameters
+    IC_Function5 GetInitialCondition5(const std::string &key)
+    {
+        return initialConditions5_.at(key);
     }
 
     // Registration of vector function boundary conditions with no parameters
@@ -258,6 +297,9 @@ private:
     std::map<std::string, IC_Function0> initialConditions0_;
     std::map<std::string, IC_Function1> initialConditions1_;
     std::map<std::string, IC_Function2> initialConditions2_;
+    std::map<std::string, IC_Function3> initialConditions3_;
+    std::map<std::string, IC_Function4> initialConditions4_;
+    std::map<std::string, IC_Function5> initialConditions5_;
 
     std::map<std::string, BC_VectorFunction0> boundaryConditionsVectorFunction0_;
     std::map<std::string, BC_VectorFunction1> boundaryConditionsVectorFunction1_;

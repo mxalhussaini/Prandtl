@@ -12,7 +12,7 @@ std::function<void(const Vector&, Vector&)> BackwardFacingStepIC(real_t gammaM1I
     {
         MFEM_ASSERT(x.Size() == 2, "Backward Facing Step is a 2D problem");
         real_t density, velocity_x, velocity_y, pressure, energy;
-        if (x(0) <= 0.5)
+        if (x(0) < 0.5)
         {
             density = 5.9970;
             velocity_x = 98.5914;

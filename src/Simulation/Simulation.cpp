@@ -13,12 +13,14 @@
 #include "WoodwardColellaBlastWaveRight.hpp"
 #include "WoodwardColellaBlastWaveCollision.hpp"
 #include "ShuOsherShock.hpp"
+#include "AcousticWave.hpp"
 
 #include "DoubleMachReflection.hpp"
 #include "ForwardFacingStep.hpp"
 #include "BackwardFacingStep.hpp"
 #include "TriplePointShockInteraction.hpp"
 #include "KelvinHelmholtzInstability.hpp"
+#include "IsentropicVortex.hpp"
 
 #include "json.hpp"
 
@@ -206,6 +208,30 @@ void Simulation::LoadConfig(const std::string &config_file_path)
         real_t x2 = runtime["conditions"]["initial_conditions"]["params"].value("x2", 0.0);
         u0 = std::make_unique<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetInitialCondition2(IC_key)(x1, x2));
     }
+    else if (signature == 3)
+    {
+        real_t x1 = runtime["conditions"]["initial_conditions"]["params"].value("x1", 0.0);
+        real_t x2 = runtime["conditions"]["initial_conditions"]["params"].value("x2", 0.0);
+        real_t x3 = runtime["conditions"]["initial_conditions"]["params"].value("x3", 0.0);
+        u0 = std::make_unique<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetInitialCondition3(IC_key)(x1, x2, x3));
+    }
+    else if (signature == 4)
+    {
+        real_t x1 = runtime["conditions"]["initial_conditions"]["params"].value("x1", 0.0);
+        real_t x2 = runtime["conditions"]["initial_conditions"]["params"].value("x2", 0.0);
+        real_t x3 = runtime["conditions"]["initial_conditions"]["params"].value("x3", 0.0);
+        real_t x4 = runtime["conditions"]["initial_conditions"]["params"].value("x4", 0.0);
+        u0 = std::make_unique<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetInitialCondition4(IC_key)(x1, x2, x3, x4));
+    }
+    else if (signature == 5)
+    {
+        real_t x1 = runtime["conditions"]["initial_conditions"]["params"].value("x1", 0.0);
+        real_t x2 = runtime["conditions"]["initial_conditions"]["params"].value("x2", 0.0);
+        real_t x3 = runtime["conditions"]["initial_conditions"]["params"].value("x3", 0.0);
+        real_t x4 = runtime["conditions"]["initial_conditions"]["params"].value("x4", 0.0);
+        real_t x5 = runtime["conditions"]["initial_conditions"]["params"].value("x5", 0.0);
+        u0 = std::make_unique<VectorFunctionCoefficient>(num_equations, ConditionFactory::Instance().GetInitialCondition5(IC_key)(x1, x2, x3, x4, x5));
+    }
     else
     {
         std::cerr << "Error: Invalid initial condition signature." << std::endl;
@@ -325,15 +351,19 @@ void Simulation::LoadConfig(const std::string &config_file_path)
                 // This rank has no faces with this boundary name; skip
                 continue;
             }
-            bdr_marker_vector.push_back(Array<int>(max_bdr_attr));
+            Array<int> marker(max_bdr_attr);
+            marker = 0;
+            // bdr_marker_vector.push_back(Array<int>(max_bdr_attr));
             set_marker = pmesh->bdr_attribute_sets.GetAttributeSetMarker(boundaryName);
             for (int b = 0; b < max_bdr_attr; b++)
             {
                 if (set_marker[b])
                 {
-                    bdr_marker_vector.back()[b] = 1;
+                    // bdr_marker_vector.back()[b] = 1;
+                    marker[b] = 1;
                 }
             }
+            bdr_marker_vector.push_back(marker);
 
             auto bc_props = boundary.value();  // This is a JSON object.
             std::string type = bc_props["type"].get<std::string>();
@@ -802,6 +832,20 @@ void Simulation::Run()
             }
         }
     }
+
+    // VectorFunctionCoefficient u_final(num_equations, ConditionFactory::Instance().GetVectorTDFunctionBoundaryCondition1("AcousticWaveExactSolution")(1.4)); 
+    // u_final.SetTime(1.0);
+    // ParGridFunction u_final_gf(vfes.get());
+    // u_final_gf.ProjectCoefficient(u_final);
+    // real_t error_L1 = sol->ComputeLpError(1.0, *u0);
+    // real_t error_L2 = sol->ComputeLpError(2.0, *u0);
+    // real_t error_Linf = sol->ComputeLpError(infinity(), *u0);
+    // if (Mpi::Root())
+    // {
+    //     std::cout << "L1 Error: " << error_L1 << std::endl;
+    //     std::cout << "L2 Error: " << error_L2 << std::endl;
+    //     std::cout << "Linf Error: " << error_Linf << std::endl;
+    // }
 
     // Stop the clock if enabled
     if (clock_simulation)

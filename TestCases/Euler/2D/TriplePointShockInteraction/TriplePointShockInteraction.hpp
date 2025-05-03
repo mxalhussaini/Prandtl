@@ -19,16 +19,17 @@ std::function<void(const Vector&, Vector&)> TriplePointShockInteractionIC(real_t
         }
         else if (x(0) <= 7.0 && x(1) <= 1.5)
         {
-            density = 0.125;
-            velocity_x = 0.0;
+            density = 1.0;
             pressure = 0.1;
         }
         else
         {
-            density = 1.0;
-            velocity_x = 0.0;
+            density = 0.125;
             pressure = 0.1;
         }
+
+        velocity_x = 0.0;
+        velocity_y = 0.0;
         energy = pressure * gammaM1Inverse;
 
         y(0) = density;

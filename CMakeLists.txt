@@ -103,11 +103,13 @@ target_include_directories(${PROJECT_NAME}
     PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/1D/WoodwardColellaBlastWaveRight
     PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/1D/WoodwardColellaBlastWaveCollision
     PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/1D/ShuOsherShock
+    PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/1D/AcousticWave
     PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/2D/DoubleMachReflection
     PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/2D/ForwardFacingStep
     PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/2D/BackwardFacingStep
     PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/2D/TriplePointShockInteraction
     PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/2D/KelvinHelmholtzInstability
+    PUBLIC ${CMAKE_SOURCE_DIR}/TestCases/Euler/2D/IsentropicVortex
     )
 
 target_link_directories(${PROJECT_NAME}
