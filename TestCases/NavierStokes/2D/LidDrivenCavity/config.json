@@ -34,7 +34,7 @@
         "gamma" : 1.4,
 
         "mesh_ordering": "Hilbert",
-        "ref_levels": 0,
+        "ser_ref_levels": 0,
 
         "mesh_file": "../../TestCases/NavierStokes/2D/LidDrivenCavity/LidDrivenCavity.msh",
         "conditions":

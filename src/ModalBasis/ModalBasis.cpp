@@ -100,6 +100,7 @@ void ModalBasis::ComputeUBDegs(Geometry::Type &gtype)
                }
             }
          }
+         break;
       }
       default:
          MFEM_ABORT("Element type not currently supported for modal basis.")

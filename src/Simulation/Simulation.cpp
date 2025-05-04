@@ -2,6 +2,7 @@
 #include "ConditionFactory.hpp"
 
 #include "LidDrivenCavity.hpp"
+#include "TaylorGreenVortex.hpp"
 
 #include "SodShockTube.hpp"
 #include "ModifiedSodShockTube.hpp"
@@ -189,6 +190,7 @@ void Simulation::LoadConfig(const std::string &config_file_path)
         std::cerr << "Error: Invalid numerical flux specified." << std::endl;
         return;
     }
+
 
     signature = runtime["conditions"]["initial_conditions"].value("signature", 0);
     std::string IC_key = runtime["conditions"]["initial_conditions"].value("function", "LidDrivenCavityIC");
