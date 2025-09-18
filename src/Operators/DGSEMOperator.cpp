@@ -149,7 +149,7 @@ void DGSEMOperator::ComputeGlobalPrimitiveGradVector(const Vector &u, Vector &du
         dudz.GetSubVector(vdof_indices, grad_vdofs);
         DenseMatrix grad_mat3(grad_vdofs.GetData(), Ndofs, num_equations);
         EntropyGrad2PrimGrad(vdof_mat, grad_mat3, gammaM1, gammaM1Inverse);
-        dudy.SetSubVector(vdof_indices, grad_mat3.GetData());      
+        dudz.SetSubVector(vdof_indices, grad_mat3.GetData());      
     
     }
 }
@@ -177,9 +177,9 @@ void DGSEMOperator::Mult(const Vector &u, Vector &dudt) const
     }
     else
     {
-        nonlinearForm->MultLifting(global_entropy, *dudx, *dudx, *dudz);
         ComputeGlobalPrimitiveGradVector(u, *dudx, *dudy, *dudz);
         nonlinearForm->Mult(u, *dudx, *dudy, *dudz, dudt);
+        nonlinearForm->MultLifting(global_entropy, *dudx, *dudy, *dudz);
     }
 #else
     nonlinearForm->Mult(u, dudt);

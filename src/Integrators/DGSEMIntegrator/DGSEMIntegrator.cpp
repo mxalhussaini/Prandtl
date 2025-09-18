@@ -259,7 +259,7 @@ void DGSEMIntegrator::AssembleElementVector(const FiniteElement &el,
                             adj2.GetRow(2, metric2);
                             max_char_speed = std::max(max_char_speed, rsolver.ComputeVolumeFlux(state1, state2, metric1, metric2, h));
                             H_inviscid(id1).SetCol(m, h);
-                            H_inviscid(id2).SetCol(k, g);
+                            H_inviscid(id2).SetCol(k, h);
                         }
                     }
                 }
