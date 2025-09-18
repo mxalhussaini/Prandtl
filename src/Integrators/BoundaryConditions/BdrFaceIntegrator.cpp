@@ -14,21 +14,24 @@ BdrFaceIntegrator::BdrFaceIntegrator(std::shared_ptr<LiftingScheme> liftingSchem
      constant(constant), t_dependent(t_dependent)
 {
    const IntegrationRule *ir_vol;
-   ir = &GLIntRules.Get(Geometry::SEGMENT, 2 * Np_x - 3);
+
+    IntegrationOrder = 2 * Np_x - 3;
+
+   ir = &GLIntRules.Get(Geometry::SEGMENT, IntegrationOrder);
    if (dim == 1)
    {
-      ir_face = &GLIntRules.Get(Geometry::POINT, 2 * Np_x - 3);
-      ir_vol = &GLIntRules.Get(Geometry::SEGMENT, 2 * Np_x -3);
+      ir_face = &GLIntRules.Get(Geometry::POINT, IntegrationOrder);
+      ir_vol = &GLIntRules.Get(Geometry::SEGMENT,IntegrationOrder);
    }
    else if (dim == 2)
    {
-      ir_face = &GLIntRules.Get(Geometry::SEGMENT, 2 * Np_x - 3);
-      ir_vol = &GLIntRules.Get(Geometry::SQUARE, 2 * Np_x -3);
+      ir_face = &GLIntRules.Get(Geometry::SEGMENT, IntegrationOrder);
+      ir_vol = &GLIntRules.Get(Geometry::SQUARE,IntegrationOrder);
    }
    else
    {
-      ir_face = &GLIntRules.Get(Geometry::SQUARE, 2 * Np_x - 3);
-      ir_vol = &GLIntRules.Get(Geometry::CUBE, 2 * Np_x -3);
+      ir_face = &GLIntRules.Get(Geometry::SQUARE, IntegrationOrder);
+      ir_vol = &GLIntRules.Get(Geometry::CUBE,IntegrationOrder);
    }
 
    max_char_speed = -1.0;
@@ -70,6 +73,10 @@ void BdrFaceIntegrator::AssembleFaceVector(const FiniteElement &el1, const Finit
       J1 = Tr.GetElement1Transformation().Weight();
       el1.CalcShape(Tr.GetElement1IntPoint(), shape1);
 
+      Vector phys(dim);
+      Tr.Transform(ip, phys);
+      real_t r = phys[1]; 
+
       el_u_mat1.MultTranspose(shape1, state1);
 
       if (dim == 1)
@@ -82,6 +89,9 @@ void BdrFaceIntegrator::AssembleFaceVector(const FiniteElement &el1, const Finit
       }
 
       max_char_speed = std::max(max_char_speed, ComputeBdrFaceInviscidFlux(state1, state2, dU_face1, nor, Tr, ip));
+#ifdef AXISYMMETRIC
+      dU_face1 *= r;
+#endif
       dU_face1.Neg();
 
       // pre-multiply integration weight to flux

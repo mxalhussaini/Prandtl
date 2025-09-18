@@ -27,6 +27,8 @@ private:
     real_t J, J1, J2;
     int dof, dof1, dof2;
     int id1, id2;
+    int IntegrationOrder;
+    real_t gammaM1;
 
     Vector shape1, shape2;
     Vector state1, state2;
@@ -59,6 +61,10 @@ private:
 
     void ComputeSubcellMetrics();
     void ComputeFVFluxes(const DenseMatrix &el_u_mat, real_t alpha_value, ElementTransformation &Tr, DenseMatrix &el_dudt_mat);
+#ifdef AXISYMMETRIC
+    inline real_t PressureFromConservative(const Vector& U) const;
+#endif
+
 public:
 
     inline real_t GetMaxCharSpeed()
@@ -70,7 +76,7 @@ public:
                     std::shared_ptr<ParFiniteElementSpace> fes0,
                     std::shared_ptr<ParGridFunction> alpha,
                     std::shared_ptr<LiftingScheme> liftingScheme,
-                    NumericalFlux &rsolver, int Np);
+                    NumericalFlux &rsolver, int Np, real_t gamma);
 
     void AssembleFaceVector(const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudt) override;
     void AssembleElementVector(const FiniteElement &el, ElementTransformation &Tr, const Vector &el_u, Vector &el_dutdt) override;

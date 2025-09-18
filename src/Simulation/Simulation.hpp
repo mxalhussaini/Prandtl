@@ -78,16 +78,21 @@ private:
 
     std::shared_ptr<ParGridFunction> eta;
     std::shared_ptr<ParGridFunction> alpha;
+    std::shared_ptr<ParGridFunction> r_gf;
     
     std::shared_ptr<NavierStokesFlux> flux;
     std::shared_ptr<NumericalFlux> numericalFlux;
 
     std::shared_ptr<LiftingScheme> liftingScheme;
+    std::vector<std::shared_ptr<VectorFunctionCoefficient>> BC_coeff;
 
+    FunctionCoefficient r_coef, z_coef;
+    
     ParGridFunction rho, mom, energy;
     
     std::unique_ptr<ParGridFunction> u, v, w;
-    std::unique_ptr<ParGridFunction> p;
+    std::unique_ptr<ParGridFunction> p, rho_axi;
+
 
     std::unique_ptr<ParaViewDataCollection> pd;
     std::unique_ptr<VisItDataCollection> vd;
@@ -101,6 +106,14 @@ private:
     std::vector<Array<int>> bdr_marker_vector;
     Array<int> set_marker;
     int max_bdr_attr;
+
+#ifdef AXISYMMETRIC
+    void ConservativeToPrimitive(const Vector &U_cons,
+                                ParGridFunction &rho_out,
+                                ParGridFunction &uz_out,
+                                ParGridFunction &ur_out,
+                                ParGridFunction &p_out) const;  
+#endif
 
     Simulation();
 

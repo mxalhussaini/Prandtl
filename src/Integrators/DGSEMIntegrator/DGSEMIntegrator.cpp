@@ -9,28 +9,30 @@ DGSEMIntegrator::DGSEMIntegrator(
       std::shared_ptr<ParFiniteElementSpace> fes0_,
       std::shared_ptr<ParGridFunction> alpha_,
       std::shared_ptr<LiftingScheme> liftingScheme_,
-      NumericalFlux &rsolver_, int Np)
+      NumericalFlux &rsolver_, int Np, real_t gamma)
     : NonlinearFormIntegrator(), pmesh(pmesh_), fes0(fes0_), alpha(alpha_), liftingScheme(liftingScheme_),
       rsolver(rsolver_), fluxFunction(rsolver_.GetFluxFunction()),
       Np_x(Np), Np_y(fluxFunction.dim > 1 ? Np : 1), Np_z(fluxFunction.dim > 2 ? Np : 1),
       num_equations(fluxFunction.num_equations), dim(num_equations - 2), num_elements(pmesh->GetNE()),
-      GLIntRules(0, Quadrature1D::GaussLobatto)
+      GLIntRules(0, Quadrature1D::GaussLobatto), gammaM1(gamma - 1.0)
 {
-    ir = &GLIntRules.Get(Geometry::SEGMENT, 2 * Np_x - 3);
+    IntegrationOrder = 2 * Np_x - 3;
+
+    ir = &GLIntRules.Get(Geometry::SEGMENT, IntegrationOrder);
     if (dim == 1)
     {
-        ir_face = &GLIntRules.Get(Geometry::POINT, 2 * Np_x - 3);
-        ir_vol = &GLIntRules.Get(Geometry::SEGMENT, 2 * Np_x - 3);
+        ir_face = &GLIntRules.Get(Geometry::POINT, IntegrationOrder);
+        ir_vol = &GLIntRules.Get(Geometry::SEGMENT, IntegrationOrder);
     }
     else if (dim == 2)
     {
-        ir_face = &GLIntRules.Get(Geometry::SEGMENT, 2 * Np_x - 3);
-        ir_vol = &GLIntRules.Get(Geometry::SQUARE, 2 * Np_x - 3);
+        ir_face = &GLIntRules.Get(Geometry::SEGMENT, IntegrationOrder);
+        ir_vol = &GLIntRules.Get(Geometry::SQUARE, IntegrationOrder);
     }
     else
     {
-        ir_face = &GLIntRules.Get(Geometry::SQUARE, 2 * Np_x - 3);
-        ir_vol = &GLIntRules.Get(Geometry::CUBE, 2 * Np_x - 3);
+        ir_face = &GLIntRules.Get(Geometry::SQUARE, IntegrationOrder);
+        ir_vol = &GLIntRules.Get(Geometry::CUBE, IntegrationOrder);
     }
 
     max_char_speed = -1.0;
@@ -173,8 +175,14 @@ void DGSEMIntegrator::AssembleFaceVector(const FiniteElement &el1, const FiniteE
         {
             CalcOrtho(Tr.Jacobian(), nor);
         }
-
         max_char_speed = std::max(max_char_speed, rsolver.ComputeFaceFlux(state1, state2, nor, flux_num));
+
+#ifdef AXISYMMETRIC
+        Vector phys(dim);
+        Tr.Transform(ip, phys);
+        real_t r = phys[1]; 
+        flux_num *= r;
+#endif
         dU_face1 = dU_face2 = flux_num;
         dU_face1.Neg();
 
@@ -206,8 +214,8 @@ void DGSEMIntegrator::AssembleElementVector(const FiniteElement &el,
             {
                 id1 = k * Np_y * Np_x + j * Np_x + i;
                 const IntegrationPoint &ip1 = ir_vol->IntPoint(id1);
-                el_u_mat.GetRow(id1, state1);
                 Tr.SetIntPoint(&ip1);
+                el_u_mat.GetRow(id1, state1);
                 J = Tr.Weight();
                 adj1 = Tr.AdjugateJacobian();
                 adj1.GetRow(0, metric1);
@@ -218,11 +226,23 @@ void DGSEMIntegrator::AssembleElementVector(const FiniteElement &el,
                 {
                     id2 = k * Np_y * Np_x + j * Np_x + m;
                     const IntegrationPoint &ip2 = ir_vol->IntPoint(id2);
-                    el_u_mat.GetRow(id2, state2);
                     Tr.SetIntPoint(&ip2);
+                    el_u_mat.GetRow(id2, state2);
                     adj2 = Tr.AdjugateJacobian();
                     adj2.GetRow(0, metric2);
-                    max_char_speed = std::max(max_char_speed, rsolver.ComputeVolumeFlux(state1, state2, metric1, metric2, f));
+        
+              
+                max_char_speed = std::max(max_char_speed, rsolver.ComputeVolumeFlux(state1, state2, metric1, metric2, f));
+                
+                IntegrationPoint ipm = ip1;
+                ipm.x = 0.5*(ip1.x + ip2.x);
+                Vector phys(dim);
+                Tr.Transform(ipm, phys);
+                real_t r_hat = phys[1]; 
+
+#ifdef AXISYMMETRIC
+                f *= r_hat;
+#endif
                     F_inviscid(id1).SetCol(m, f);
                     F_inviscid(id2).SetCol(i, f);
                 }
@@ -236,11 +256,21 @@ void DGSEMIntegrator::AssembleElementVector(const FiniteElement &el,
                     {
                         id2 = k * Np_y * Np_x + m * Np_x + i;
                         const IntegrationPoint &ip3 = ir_vol->IntPoint(id2);
-                        el_u_mat.GetRow(id2, state2);
                         Tr.SetIntPoint(&ip3);
+                        el_u_mat.GetRow(id2, state2);  
                         adj2 = Tr.AdjugateJacobian();
                         adj2.GetRow(1, metric2);
-                        max_char_speed = std::max(max_char_speed, rsolver.ComputeVolumeFlux(state1, state2, metric1, metric2, g));
+
+                max_char_speed = std::max(max_char_speed, rsolver.ComputeVolumeFlux(state1, state2, metric1, metric2, g));
+
+                IntegrationPoint ipm = ip1;
+                ipm.y = 0.5*(ip1.y + ip3.y);
+                Vector phys(dim);
+                Tr.Transform(ipm, phys);
+                real_t r_hat = phys[1]; 
+#ifdef AXISYMMETRIC
+                g *= r_hat;
+#endif
                         G_inviscid(id1).SetCol(m, g);
                         G_inviscid(id2).SetCol(j, g);
                     }
@@ -278,12 +308,25 @@ void DGSEMIntegrator::AssembleElementVector(const FiniteElement &el,
                         H_inviscid(id1).AddMult(D_row, dU_inviscid);
                     }
                 }
+
+                 dU_inviscid.Neg();
                 
-                dU_inviscid.Neg();
 #ifdef SUBCELL_FV_BLENDING
                 dU_inviscid *= (1.0 - el_alpha(0));
+
 #endif
                 dU_inviscid /= J;
+#ifdef AXISYMMETRIC
+                
+                {
+                    
+                    const real_t p = PressureFromConservative(state1);
+                    //dU_inviscid(2) += p;
+                    el_dudt_mat(id1, 2) += p;
+ 
+                    
+                }            
+#endif
                 AddRow(el_dudt_mat, dU_inviscid, id1);
             }
         }
@@ -829,6 +872,28 @@ void DGSEMIntegrator::AssembleLiftingElementVector(const FiniteElement &el, Elem
 
 void DGSEMIntegrator::ComputeFVFluxes(const DenseMatrix &el_u_mat, real_t alpha_value, ElementTransformation &Tr, DenseMatrix &el_dudt_mat)
 {
+    auto mid_r = [&](int idL, int idR, int dir) -> real_t
+    {
+        IntegrationPoint ipL = ir_vol->IntPoint(idL);
+        IntegrationPoint ipR = ir_vol->IntPoint(idR);
+
+        IntegrationPoint ipm = ipL;
+        if (dir == 0) {
+            ipm.x = 0.5 * (ipL.x + ipR.x);
+        }
+        else if (dir == 1) {
+            ipm.y = 0.5 * (ipL.y + ipR.y);
+        }
+        else {
+            ipm.z = 0.5 * (ipL.z + ipR.z);
+        }
+
+        Vector phys(dim);
+        Tr.Transform(ipm, phys);
+
+        return phys[1]; 
+    };
+
     for (int k = 0; k < Np_z; k++)
     {
         for (int j = 0; j < Np_y; j++)
@@ -842,18 +907,33 @@ void DGSEMIntegrator::ComputeFVFluxes(const DenseMatrix &el_u_mat, real_t alpha_
                 el_u_mat.GetRow(id2, state2);
                 SubcellMetricXi(Tr.ElementNo).GetColumn(id2, nor);
                 max_char_speed = std::max(max_char_speed, rsolver.ComputeFaceFlux(state1, state2, nor, flux_num));
-                Tr.SetIntPoint(&ir_vol->IntPoint(id1));
 
+                real_t r_hat  = mid_r(id1, id2, 0);
+
+
+               
+#ifdef AXISYMMETRIC
+                flux_num *= r_hat;
+#endif
+
+                Tr.SetIntPoint(&ir_vol->IntPoint(id1));
                 dU_subcell -= flux_num;
+
+
                 dU_subcell /= Tr.Weight() * (ir->IntPoint(i).weight);
+
+
                 el_dudt_mat.SetRow(id1, dU_subcell);
 
                 dU_subcell = flux_num;
                 state1 = state2;
                 id1 = id2;
+
             }
             Tr.SetIntPoint(&ir_vol->IntPoint(id1));
             dU_subcell /= Tr.Weight() * (ir->IntPoint(Np_x - 1).weight);
+
+
             el_dudt_mat.SetRow(id1, dU_subcell);
         }
     }
@@ -873,18 +953,28 @@ void DGSEMIntegrator::ComputeFVFluxes(const DenseMatrix &el_u_mat, real_t alpha_
                     el_u_mat.GetRow(id2, state2);
                     SubcellMetricEta(Tr.ElementNo).GetColumn(id2, nor);
                     max_char_speed = std::max(max_char_speed, rsolver.ComputeFaceFlux(state1, state2, nor, flux_num));
-                    Tr.SetIntPoint(&ir_vol->IntPoint(id1));
 
-                    dU_subcell -= flux_num;
-                    dU_subcell /= Tr.Weight() * (ir->IntPoint(j).weight);
+                    real_t r_hat  = mid_r(id1, id2, 1);
+                    
+#ifdef AXISYMMETRIC
+                flux_num *= r_hat;
+#endif
+
+                Tr.SetIntPoint(&ir_vol->IntPoint(id1));
+                dU_subcell -= flux_num;
+
+                dU_subcell /= Tr.Weight() * (ir->IntPoint(j).weight);
+
                     AddRow(el_dudt_mat, dU_subcell, id1);
 
                     dU_subcell = flux_num;
                     state1 = state2;
-                    id1 = id2;         
+                    id1 = id2;   
+                    
                 }
                 Tr.SetIntPoint(&ir_vol->IntPoint(id1));
                 dU_subcell /= Tr.Weight() * (ir->IntPoint(Np_y - 1).weight);
+
                 AddRow(el_dudt_mat, dU_subcell, id1);
             }
         }
@@ -1031,6 +1121,18 @@ void DGSEMIntegrator::ComputeSubcellMetrics()
         }
     }   
 }
+
+#ifdef AXISYMMETRIC
+inline real_t DGSEMIntegrator::PressureFromConservative(const Vector& U) const
+{
+    const real_t rho = U(0);
+    const real_t mz  = U(1);
+    const real_t mr  = U(2);
+    const real_t E   = U(3);
+    const real_t ke = 0.5 * ((mz*mz + mr*mr) / rho);
+    return gammaM1 * (E - ke);
+}
+#endif
 
 
 }

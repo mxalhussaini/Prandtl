@@ -23,7 +23,7 @@ private:
    // The maximum characteristic speed, updated during element/face vector assembly
    real_t max_char_speed;
    int dof1;
-   const NumericalFlux &rsolver;   // Numerical flux that maps F(u±,x) to hat(F)
+   int IntegrationOrder;
 
    Vector shape1;
    Vector flux_num;
@@ -34,6 +34,9 @@ private:
    Vector state1, state2, conserv_state;
    Vector dU_face1;
 
+   std::shared_ptr<ParGridFunction> r_gf;
+   std::shared_ptr<ParGridFunction> u_gf;
+
 protected:
    Vector nor;     // normal vector, @see CalcOrtho
    const NavierStokesFlux fluxFunction;
@@ -43,6 +46,8 @@ protected:
    bool constant, t_dependent;
    Vector dqdx, dqdy, dqdz;
    std::shared_ptr<LiftingScheme> liftingScheme;
+   const NumericalFlux &rsolver;  // Numerical flux that maps F(u±,x) to hat(F)
+   bool scaleStateInAxisymm = true;
 
    const real_t gamma, gammaM1, gammaM1Inverse;
 

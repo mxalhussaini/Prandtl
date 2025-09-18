@@ -37,6 +37,7 @@ Simulation& Simulation::SimulationCreate()
 }
 
 Simulation::Simulation()
+    : r_coef([](const Vector &X){ return X[1];}), z_coef([](const Vector &X){ return X[0];})
 {
     Mpi::Init();
     numProcs = Mpi::WorldSize();
@@ -54,6 +55,10 @@ Simulation::Simulation()
         std::cout << "The Navier-Stokes Equations will be Solved!" << std::endl;
 #else
         std::cout << "The Euler Equations will be Solved!" << std::endl;
+#endif
+
+#ifdef AXISYMMETRIC
+        std::cout << "Axisymmetric Mode will be Activated!" << std::endl;
 #endif
 
 #ifdef SUBCELL_FV_BLENDING
@@ -386,6 +391,24 @@ void Simulation::LoadConfig(const std::string &config_file_path)
         ti = 0;
     }
 
+#ifdef AXISYMMETRIC
+    r_coef = FunctionCoefficient([](const Vector &X){
+        return X[1]; });
+    r_gf = std::make_shared<ParGridFunction>(fes.get());
+    r_gf->ProjectCoefficient(r_coef);
+    
+    real_t *r_data = r_gf->GetData();
+    real_t *sol_data = sol->GetData();
+
+    for (int i = 0; i < num_dofs_scalar; ++i)
+        {
+            for (int j=0; j < num_equations ; ++j)
+            {
+               sol_data[j*num_dofs_scalar+i] *= r_data[i]; 
+            }
+        }
+
+#endif
 
     next_checkpoint_t = t + checkpoint_dt;
     if (visualize) { next_save_t = t + save_dt; }
@@ -409,9 +432,8 @@ void Simulation::LoadConfig(const std::string &config_file_path)
     }
 
     NS = std::make_unique<DGSEMOperator>(vfes, fes0, pmesh, eta, alpha, dudx, dudy, dudz,
-        std::make_unique<Prandtl::DGSEMIntegrator>(pmesh, fes0, alpha, liftingScheme, *numericalFlux, order + 1),
-        std::make_unique<Prandtl::PerssonPeraireIndicator>(vfes, fes0, eta, std::make_shared<Prandtl::ModalBasis>(*fec, gtype, order, dim), physicsConstants->gamma), physicsConstants->gamma, alpha_max);
-
+        std::make_unique<Prandtl::DGSEMIntegrator>(pmesh, fes0, alpha, liftingScheme, *numericalFlux, order + 1, physicsConstants->gamma),
+        std::make_unique<Prandtl::PerssonPeraireIndicator>(vfes, fes0, eta, std::make_shared<Prandtl::ModalBasis>(*fec, gtype, order, dim), physicsConstants->gamma), physicsConstants->gamma, r_gf, alpha_max);
 
     if (runtime["conditions"].contains("boundary_conditions"))
     {
@@ -448,6 +470,21 @@ void Simulation::LoadConfig(const std::string &config_file_path)
                 auto symmetry = std::make_unique<SymmetryBdrFaceIntegrator>(liftingScheme, *numericalFlux, order + 1, NS->GetTimeRef(), physicsConstants->gamma, true, false);
 
                 NS->AddBdrFaceIntegrator(symmetry.release(), bdr_marker_vector.back());
+
+#ifdef AXISYMMETRIC
+                if (type == "axis")
+                {
+                   NS->SetAxisBoundaryMarker(bdr_marker_vector.back());
+                   NS->SetLowOrderAxis(true);
+                }
+#endif
+            }
+            else if (type == "slip")
+            {
+                auto slip = std::make_unique<SlipWallBdrFaceIntegrator>(liftingScheme, *numericalFlux, order + 1, NS->GetTimeRef(), physicsConstants->gamma, true, false);
+
+                NS->AddBdrFaceIntegrator(slip.release(), bdr_marker_vector.back());
+
             }
             else if (type == "no-slip-adiabatic")
             {   
@@ -554,15 +591,21 @@ void Simulation::LoadConfig(const std::string &config_file_path)
             }
             else if (type == "supersonic-outflow")
             {
-                NS->AddBdrFaceIntegrator(new SupersonicOutflowBdrFaceIntegrator(liftingScheme, *numericalFlux, order + 1, NS->GetTimeRef(), physicsConstants->gamma), bdr_marker_vector.back());
+                auto outlet = std::make_unique<SupersonicOutflowBdrFaceIntegrator>(liftingScheme, *numericalFlux, order + 1, NS->GetTimeRef(), physicsConstants->gamma);
+
+                NS->AddBdrFaceIntegrator(outlet.release(), bdr_marker_vector.back());
+
             }
             else if (type == "supersonic-inflow")
             {
                 if (bc_props.contains("vector"))
                 {
-                    std::string state_key = bc_props["vector"].get<std::string>();
-                    NS->AddBdrFaceIntegrator(new SupersonicInflowBdrFaceIntegrator(liftingScheme, *numericalFlux, order + 1, NS->GetTimeRef(), physicsConstants->gamma,
-                        ConditionFactory::Instance().GetVectorBoundaryCondition(state_key)), bdr_marker_vector.back());
+                std::string state_key = bc_props["vector"].get<std::string>();
+                auto inlet = std::make_unique<SupersonicInflowBdrFaceIntegrator>(liftingScheme, *numericalFlux, order + 1, NS->GetTimeRef(), physicsConstants->gamma,
+                        ConditionFactory::Instance().GetVectorBoundaryCondition(state_key));
+
+                    NS->AddBdrFaceIntegrator(inlet.release(), bdr_marker_vector.back());
+
                 }
                 else
                 {
@@ -620,7 +663,11 @@ void Simulation::LoadConfig(const std::string &config_file_path)
                         std::cerr << "Error: Invalid boundary condition signature." << std::endl;
                         return;
                     }
-                    NS->AddBdrFaceIntegrator(new SupersonicInflowBdrFaceIntegrator(liftingScheme, *numericalFlux, order + 1, NS->GetTimeRef(), physicsConstants->gamma, *stateBC, td), bdr_marker_vector.back());
+                    auto inlet = std::make_unique<SupersonicInflowBdrFaceIntegrator>(liftingScheme, *numericalFlux, order + 1, NS->GetTimeRef(), physicsConstants->gamma,
+                        *stateBC, td);
+
+                    NS->AddBdrFaceIntegrator(inlet.release(), bdr_marker_vector.back());
+
                 }
             }
             else if (type == "specified-state")
@@ -721,6 +768,11 @@ void Simulation::LoadConfig(const std::string &config_file_path)
         }
     }
     p = std::make_unique<ParGridFunction>(fes.get());
+
+#ifdef AXISYMMETRIC
+    rho_axi = std::make_unique<ParGridFunction>(fes.get());
+#endif
+    
     
     if (visualize)
     {
@@ -728,7 +780,11 @@ void Simulation::LoadConfig(const std::string &config_file_path)
         {
             pd = std::make_unique<ParaViewDataCollection>(ParaView_folder, pmesh.get());
             pd->SetPrefixPath(output_file_path);
+#ifdef AXISYMMETRIC
+            pd->RegisterField("Density", rho_axi.get());
+#else
             pd->RegisterField("Density", &rho);
+#endif
             pd->RegisterField("Horizontal V", u.get());
             if (dim > 1)
             {
@@ -751,7 +807,11 @@ void Simulation::LoadConfig(const std::string &config_file_path)
             vd->SetPrecision(precision);
             vd->SetFormat(DataCollection::PARALLEL_FORMAT);
 
+#ifdef AXISYMMETRIC
+            vd->RegisterField("Density", rho_axi.get());
+#else
             vd->RegisterField("Density", &rho);
+#endif
             vd->RegisterField("Horizontal V", u.get());
             if (dim > 1)
             {
@@ -777,8 +837,10 @@ void Simulation::Run()
     }
 
     // Get the minimum characteristic element size and compute the initial time step if time step is variable
+ 
     if (variable_dt && cfl > 0.0)
     {
+        
         hmin = infinity();
         for (int i = 0; i < pmesh->GetNE(); i++)
         {
@@ -799,9 +861,38 @@ void Simulation::Run()
         tic_toc.Start();
     }
 
+    // print the first node:
+#ifdef AXISYMMETRIC
+        Vector U_cons(sol->Size());
+        NS->RecoverStateFromWeighted(*sol, U_cons);
+        ConservativeToPrimitive(U_cons, *rho_axi, *u, *v, *p);
+#endif
+    if (Mpi::Root())
+        {
+            int i = 0;  
+#ifdef AXISYMMETRIC
+            real_t rhoi = (*rho_axi)(i);
+            real_t ui = (*u)(i);               
+            real_t vi = (*v)(i);
+            real_t pi = (*p)(i);
+
+            NS->SetAxisFloorsFromFreestream(rhoi, pi);
+#else
+            real_t rhoi = rho(i);
+            real_t ui = mom(i)/rhoi;               
+            real_t vi = mom(i + num_dofs_scalar)/rhoi;
+            real_t pi = physicsConstants->gammaM1 * (energy(i) - 0.5*rhoi*ui*ui);
+#endif
+            std::cout << "***  initial at dof #" << i << ":  "
+                        << "rho = " << std::round(rhoi*10000)/10000 << ",  u = " << std::round(ui*100)/100 << ",  v = " << std::round(vi*100)/100 << ",  p = " << std::round(pi*100)/100 << "\n";
+        }
     // Visualize the initial condition?
     if (visualize)
     {
+#ifdef AXISYMMETRIC
+
+        
+#else
         for (int i = 0; i < num_dofs_scalar; i++)
         {
             (*u)(i) = mom(i) / rho(i);
@@ -872,6 +963,11 @@ void Simulation::Run()
         if (visualize && (done || t >= next_save_t))
         {
         
+#ifdef AXISYMMETRIC
+        Vector U_cons(sol->Size());
+        NS->RecoverStateFromWeighted(*sol, U_cons);
+        ConservativeToPrimitive(U_cons, *rho_axi, *u, *v, *p);
+#else
         for (int i = 0; i < num_dofs_scalar; i++)
         {       
                 (*u)(i) = mom(i) / rho(i);
@@ -953,6 +1049,26 @@ void Simulation::Run()
         }
     }
 
+#ifdef AXISYMMETRIC
+
+    auto stats = NS->GetAxisReconStats(true);
+
+    if (Mpi::Root())
+    {
+        const double denom = (stats.calls > 0) ? (double)stats.calls : 1.0;
+        const double highOrder_shape_percentage = 100.0 * (double)stats.highOrder_shape / denom;
+        const double lowOrder_ray2_percentage = 100.0 * (double)stats.lowOrder_ray2 / denom;
+        const double lowOrder_ray1_percentage = 100.0 * (double)stats.lowOrder_ray1 / denom;
+        const double lowOrder_copy_percentage = 100.0 * (double)stats.lowOrder_copy / denom;
+        std::cout << "[Axis Reconstruction]" << "\n" 
+                  << "High Order [shape] : " << std::round(highOrder_shape_percentage*1000)/1000.0 << "%" << "\n" 
+                  << "Low  Order [ray2]  : " << std::round(lowOrder_ray2_percentage*1000)/1000.0 << "%" << "\n" 
+                  << "Low  Order [ray1]  : " << std::round(lowOrder_ray1_percentage*1000)/1000.0 << "%" << "\n" 
+                  << "Low  Order [copy]  : " << std::round(lowOrder_copy_percentage*1000)/1000.0 << "%" << std::endl;
+    }
+
+#endif
+
     // VectorFunctionCoefficient u_final(num_equations, ConditionFactory::Instance().GetVectorTDFunctionBoundaryCondition1("AcousticWaveExactSolution")(1.4)); 
     // u_final.SetTime(1.0);
     // ParGridFunction u_final_gf(vfes.get());
@@ -988,5 +1104,35 @@ void Simulation::Run()
         }
     }
 }
+
+#ifdef AXISYMMETRIC
+void Simulation::ConservativeToPrimitive(const Vector &U_cons,
+                                ParGridFunction &rho_out,
+                                ParGridFunction &uz_out,
+                                ParGridFunction &ur_out,
+                                ParGridFunction &p_out) const
+{
+    for (int i = 0; i < num_dofs_scalar; i++)
+    {
+        const real_t rho = U_cons[i];
+        const real_t mz  = U_cons[i + num_dofs_scalar];
+        const real_t mr  = U_cons[i + 2*num_dofs_scalar];
+        const real_t E   = U_cons[i + 3*num_dofs_scalar];
+
+        real_t uz = 0.0, ur = 0.0, p = 0.0;
+
+        uz = mz / rho;
+        ur = mr / rho;
+        const real_t Vsq = uz*uz + ur*ur;
+        p = physicsConstants->gammaM1 * (E - 0.5 * rho * Vsq);
+    
+        rho_out(i) = rho;
+        uz_out(i)  = uz;
+        ur_out(i)  = ur;
+        p_out(i)   = p;
+    }
+}
+#endif
+
 
 }
