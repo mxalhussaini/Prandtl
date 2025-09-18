@@ -3,6 +3,7 @@
 
 namespace Prandtl
 {
+bool debug_integrator = false;
 
 DGSEMIntegrator::DGSEMIntegrator(
       std::shared_ptr<ParMesh> pmesh_,
@@ -85,6 +86,11 @@ DGSEMIntegrator::DGSEMIntegrator(
     shape1.SetSize(ir_vol->GetNPoints());
     shape2.SetSize(ir_vol->GetNPoints());
 
+
+if (debug_integrator)
+{
+    std::cout << "[DGSEMIntegrator] Np = " << Np_x << ", IntegrationOrder = " << IntegrationOrder << ", dof = " << dof << "\n";
+}
     state1.SetSize(num_equations);
     state2.SetSize(num_equations);
 
@@ -146,6 +152,10 @@ void DGSEMIntegrator::AssembleFaceVector(const FiniteElement &el1, const FiniteE
                                          FaceElementTransformations &Tr, const Vector &el_u,
                                          Vector &el_dudt)
 {
+    if (debug_integrator) 
+    {
+        std::cout << "===== Entering DGSEMIntegrator::AssembleFaceVector =====" << std::endl;
+    }
     el_dudt.SetSize((dof1 + dof2) * num_equations);
     el_dudt = 0.0;
 
@@ -181,8 +191,28 @@ void DGSEMIntegrator::AssembleFaceVector(const FiniteElement &el1, const FiniteE
         Vector phys(dim);
         Tr.Transform(ip, phys);
         real_t r = phys[1]; 
+
+
+        if (debug_integrator)
+        {
+            std::cout << "[AssembleFace]" << " Elem      =  " << Tr.ElementNo << "\n";
+            std::cout << "[AssembleFace]" << " (x,r)     = (" << phys[0] << ", " << std::round(r) << ")" << "\n";
+            std::cout << "[AssembleFace]" << " faceIP#   =  " << i <<", ip.x = " << ip.x << ", weight = " << ip.weight << ", J1 = " << J1 << ", J2 = " << J2 << "\n";
+            std::cout << "[AssembleFace]" << " state1    = [" << state1[0] << ", " << state1[1] << ", " << state1[2] << ", " << state1[3] << "]\n";
+            std::cout << "[AssembleFace]" << " state2    = [" << state2[0] << ", " << state2[1] << ", " << state2[2] << ", " << state2[3] << "]\n";
+            std::cout << "[AssembleFace]" << " flux_num  = [" << flux_num[0] << ", " << flux_num[1] << ", " << flux_num[2] << ", " << flux_num[3] << "]\n";
+        }
+
         flux_num *= r;
+
+         if (debug_integrator)
+        {
+            std::cout << "[AssembleFace]" << " rflux_num = [" << flux_num[0] << ", " << flux_num[1] << ", " << flux_num[2] << ", " << flux_num[3] << "]\n";
+            std::cout << "________________________________________________________________________________________________________________" << "\n";
+        }
 #endif
+
+   
         dU_face1 = dU_face2 = flux_num;
         dU_face1.Neg();
 
@@ -194,6 +224,11 @@ void DGSEMIntegrator::AssembleFaceVector(const FiniteElement &el1, const FiniteE
 void DGSEMIntegrator::AssembleElementVector(const FiniteElement &el,
         ElementTransformation &Tr, const Vector &el_u, Vector &el_dudt)
 {
+    if (debug_integrator)
+    {
+        std::cout << "===== Entering DGSEMIntegrator::AssembleElementVector =====" << std::endl;
+    }
+
     fes0->GetElementDofs(Tr.ElementNo, alpha_indx);
     alpha->GetSubVector(alpha_indx, el_alpha);
 
@@ -240,9 +275,26 @@ void DGSEMIntegrator::AssembleElementVector(const FiniteElement &el,
                 Tr.Transform(ipm, phys);
                 real_t r_hat = phys[1]; 
 
+                if (debug_integrator)
+                {
+                    std::cout << "[AssembleElement] [dim == 1]" << " (k, j, i, m) = (" << k << ", " << j << ", " << i << ", " << m << ")" << "\n";
+                    std::cout << "[AssembleElement] [dim == 1]" << " (id1, id2)   = (" << id1 << ", " << id2 << ")" << "\n";
+                    std::cout << "[AssembleElement] [dim == 1]" << " Elem         =  " << Tr.ElementNo << "\n";
+                    std::cout << "[AssembleElement] [dim == 1]" << " (x,r)        = (" << phys[0] << ", " << std::round(r_hat) << ")" << "\n";
+                    std::cout << "[AssembleElement] [dim == 1]" << " ip1.x.       =  " << ip1.x << ", w1 = " << ip1.weight << ", ip2.x = " << ip2.x << ", w2 = " << ip2.weight << ", J = " << J << "\n";
+                    std::cout << "[AssembleElement] [dim == 1]" << " state1.      = [" << state1[0] << ", " << state1[1] << ", " << state1[2] << ", " << state1[3] << "]\n";
+                    std::cout << "[AssembleElement] [dim == 1]" << " state2.      = [" << state2[0] << ", " << state2[1] << ", " << state2[2] << ", " << state2[3] << "]\n";
+                    std::cout << "[AssembleElement] [dim == 1]" << " f            = [" << f[0] << ", " << f[1] << ", " << f[2] << ", " << f[3] << "]\n";
+                }
+              
 #ifdef AXISYMMETRIC
                 f *= r_hat;
 #endif
+
+                if (debug_integrator)
+                {
+                    std::cout << "[AssembleElement] [dim == 1]" << " rf           = [" << f[0] << ", " << f[1] << ", " << f[2] << ", " << f[3] << "]\n";
+                }
                     F_inviscid(id1).SetCol(m, f);
                     F_inviscid(id2).SetCol(i, f);
                 }
@@ -268,9 +320,28 @@ void DGSEMIntegrator::AssembleElementVector(const FiniteElement &el,
                 Vector phys(dim);
                 Tr.Transform(ipm, phys);
                 real_t r_hat = phys[1]; 
+
+                if (debug_integrator)
+                {
+                    std::cout << "[AssembleElement] [dim == 2]" << " (k, j, i, m) = (" << k << ", " << j << ", " << i << ", " << m << ")" << "\n";
+                    std::cout << "[AssembleElement] [dim == 2]" << " (id1, id2)   = (" << id1 << ", " << id2 << ")" << "\n";
+                    std::cout << "[AssembleElement] [dim == 2]" << " Elem.        =  " << Tr.ElementNo << "\n";
+                    std::cout << "[AssembleElement] [dim == 2]" << " (x,r)        = (" << phys[0] << ", " << std::round(r_hat) << ")" << "\n";
+                    std::cout << "[AssembleElement] [dim == 2]" << " ip1.x        =  " << ip1.x << ", w1 = " << ip1.weight << ", ip3.x = " << ip3.x << ", w3 = " << ip3.weight << ", J = " << J << "\n";
+                    std::cout << "[AssembleElement] [dim == 2]" << " state1.      = [" << state1[0] << ", " << state1[1] << ", " << state1[2] << ", " << state1[3] << "]\n";
+                    std::cout << "[AssembleElement] [dim == 2]" << " state2.      = [" << state2[0] << ", " << state2[1] << ", " << state2[2] << ", " << state2[3] << "]\n";
+                    std::cout << "[AssembleElement] [dim == 2]" << " g            = [" << g[0] << ", " << g[1] << ", " << g[2] << ", " << g[3] << "]\n";
+                }
+
+                
 #ifdef AXISYMMETRIC
                 g *= r_hat;
 #endif
+
+                if (debug_integrator)
+                {
+                    std::cout << "[AssembleElement] [dim == 2]" << " rg           = [" << g[0] << ", " << g[1] << ", " << g[2] << ", " << g[3] << "]\n";
+                }
                         G_inviscid(id1).SetCol(m, g);
                         G_inviscid(id2).SetCol(j, g);
                     }
@@ -297,10 +368,19 @@ void DGSEMIntegrator::AssembleElementVector(const FiniteElement &el,
                 Dhat2_T.GetColumn(i, D_row); 
                 F_inviscid(id1).Mult(D_row, dU_inviscid);
 
+                if (debug_integrator)
+                {
+                    std::cout << "[AssembleElement] [dim == 1]" << " rdU_inviscid = [" << dU_inviscid[0] << ", " << dU_inviscid[1] << ", " << dU_inviscid[2] << ", " << dU_inviscid[3] << "]\n";
+                }
+
                 if (dim > 1)
                 {
                     Dhat2_T.GetColumn(j, D_row);
                     G_inviscid(id1).AddMult(D_row, dU_inviscid);
+                if (debug_integrator)
+                {
+                    std::cout << "[AssembleElement] [dim == 2]" << " rdU_inviscid = [" << dU_inviscid[0] << ", " << dU_inviscid[1] << ", " << dU_inviscid[2] << ", " << dU_inviscid[3] << "]\n";
+                }
                     
                     if (dim > 2)
                     {
@@ -314,8 +394,20 @@ void DGSEMIntegrator::AssembleElementVector(const FiniteElement &el,
 #ifdef SUBCELL_FV_BLENDING
                 dU_inviscid *= (1.0 - el_alpha(0));
 
+                 if (debug_integrator)
+                {
+                    std::cout << "[AssembleElement]" << " alpha = " << el_alpha(0) << "\n";
+                    std::cout << "[AssembleElement]" << " -rdU_inviscid *= 1-a    = [" << dU_inviscid[0] << ", " << dU_inviscid[1] << ", " << dU_inviscid[2] << ", " << dU_inviscid[3] << "]\n";
+                }
 #endif
                 dU_inviscid /= J;
+
+                if (debug_integrator)
+                {
+                    std::cout << "[AssembleElement]" << " -rdU_inviscid/J         = [" << dU_inviscid[0] << ", " << dU_inviscid[1] << ", " << dU_inviscid[2] << ", " << dU_inviscid[3] << "]\n";
+                    std::cout << "________________________________________________________________________________________________________________" << "\n";
+                }
+
 #ifdef AXISYMMETRIC
                 
                 {
@@ -324,6 +416,13 @@ void DGSEMIntegrator::AssembleElementVector(const FiniteElement &el,
                     //dU_inviscid(2) += p;
                     el_dudt_mat(id1, 2) += p;
  
+                if (debug_integrator)
+                {
+                    const DenseMatrix &Jm = Tr.Jacobian();
+                    const real_t dr_deta_dbg = (Jm.NumRows() > 1 && Jm.NumCols() > 1) ? Jm(1,1) : 0.0;
+                    std::cout << "[AssembleElement]" << " p = " << p << "\n"; //", r = " << r_hat << ", dr/deta = " << dr_deta_dbg << "\n";
+                    std::cout << "[AssembleElement]" << " rdU_inviscid[2]-pJ      = [" << dU_inviscid[0] << ", " << dU_inviscid[1] << ", " << dU_inviscid[2] << ", " << dU_inviscid[3] << "]\n";
+                }
                     
                 }            
 #endif
@@ -872,6 +971,11 @@ void DGSEMIntegrator::AssembleLiftingElementVector(const FiniteElement &el, Elem
 
 void DGSEMIntegrator::ComputeFVFluxes(const DenseMatrix &el_u_mat, real_t alpha_value, ElementTransformation &Tr, DenseMatrix &el_dudt_mat)
 {
+    if (debug_integrator)
+    {
+        std::cout << "===== Entering DGSEMIntegrator::ComputeFVFluxes =====" << std::endl;
+    }
+    
     auto mid_r = [&](int idL, int idR, int dir) -> real_t
     {
         IntegrationPoint ipL = ir_vol->IntPoint(idL);
@@ -910,18 +1014,42 @@ void DGSEMIntegrator::ComputeFVFluxes(const DenseMatrix &el_u_mat, real_t alpha_
 
                 real_t r_hat  = mid_r(id1, id2, 0);
 
+                if (debug_integrator)
+                {
+                    std::cout << "[ComputeFVFluxes] [dim == 1]  [Xi]" << " (k, j, i)               = (" << k << ", " << j << ", " << i << ")" << "\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 1]  [Xi]" << " (id1, id2)              = (" << id1 << ", " << id2 << ")" << "\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 1]  [Xi]" << " Elem                    =  " << Tr.ElementNo << "\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 1]  [Xi]" << " r                       =  " << std::round(r_hat) << ", faceIP# = " << i << "\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 1]  [Xi]" << " nor                     = (" << nor[0] << ", " << nor[1] << ")\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 1]  [Xi]" << " state1                  = [" << state1[0] << ", " << state1[1] << ", " << state1[2] << ", " << state1[3] << "]\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 1]  [Xi]" << " state2                  = [" << state2[0] << ", " << state2[1] << ", " << state2[2] << ", " << state2[3] << "]\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 1]  [Xi]" << " flux_num                = [" << flux_num[0] << ", " << flux_num[1] << ", " << flux_num[2] << ", " << flux_num[3] << "]\n";
+                }          
 
                
 #ifdef AXISYMMETRIC
                 flux_num *= r_hat;
 #endif
 
+                if (debug_integrator)
+                {
+                    std::cout << "[ComputeFVFluxes] [dim == 1]  [Xi]" << " rflux_num               = [" << flux_num[0] << ", " << flux_num[1] << ", " << flux_num[2] << ", " << flux_num[3] << "]\n";
+                }
                 Tr.SetIntPoint(&ir_vol->IntPoint(id1));
                 dU_subcell -= flux_num;
 
+                if (debug_integrator)
+                {
+                    std::cout << "[ComputeFVFluxes] [dim == 1]  [Xi]" << " dU_subcell -= rfluxnum  = [" << dU_subcell[0] << ", " << dU_subcell[1] << ", " << dU_subcell[2] << ", " << dU_subcell[3] << "]\n";
+                }
 
                 dU_subcell /= Tr.Weight() * (ir->IntPoint(i).weight);
 
+                if (debug_integrator)
+                {
+                    std::cout << "[ComputeFVFluxes] [dim == 1]  [Xi]" << " J = " << Tr.Weight() << ", w = " << ir->IntPoint(i).weight << "\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 1]  [Xi]" << " dU_subcell =/w.J        = [" << dU_subcell[0] << ", " << dU_subcell[1] << ", " << dU_subcell[2] << ", " << dU_subcell[3] << "]\n";
+                }
 
                 el_dudt_mat.SetRow(id1, dU_subcell);
 
@@ -929,10 +1057,21 @@ void DGSEMIntegrator::ComputeFVFluxes(const DenseMatrix &el_u_mat, real_t alpha_
                 state1 = state2;
                 id1 = id2;
 
+                if (debug_integrator)
+                {
+                    std::cout << "[ComputeFVFluxes] [dim == 1]  [Xi]" << " dU_subcell = rflux_num  = [" << dU_subcell[0] << ", " << dU_subcell[1] << ", " << dU_subcell[2] << ", " << dU_subcell[3] << "]\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 1]  [Xi]" << " state1 = state2         = [" << state1[0] << ", " << state1[1] << ", " << state1[2] << ", " << state1[3] << "]\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 1]  [Xi]" << " id1 = id2               = " << id1 << "\n";
+                }
             }
             Tr.SetIntPoint(&ir_vol->IntPoint(id1));
             dU_subcell /= Tr.Weight() * (ir->IntPoint(Np_x - 1).weight);
 
+                if (debug_integrator)
+                {
+                    std::cout << "[ComputeFVFluxes] [dim == 1]  [Xi]" << " J = " << Tr.Weight() << ", w = " << ir->IntPoint(Np_x - 1).weight << "\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 1]  [Xi]" << " dU_subcell =/w.J        = [" << dU_subcell[0] << ", " << dU_subcell[1] << ", " << dU_subcell[2] << ", " << dU_subcell[3] << "]\n";
+                }
 
             el_dudt_mat.SetRow(id1, dU_subcell);
         }
@@ -956,14 +1095,42 @@ void DGSEMIntegrator::ComputeFVFluxes(const DenseMatrix &el_u_mat, real_t alpha_
 
                     real_t r_hat  = mid_r(id1, id2, 1);
                     
+                if (debug_integrator)
+                {
+                    std::cout << "[ComputeFVFluxes] [dim == 2] [Eta]" << " (k, i, j)               = (" << k << ", " << i << ", " << j << ")" << "\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 2] [Eta]" << " (id1, id2)              = (" << id1 << ", " << id2 << ")" << "\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 2] [Eta]" << " Elem                    =  " << Tr.ElementNo << "\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 2] [Eta]" << " r                       =  " << std::round(r_hat) << ", faceIP# = " << j << "\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 2] [Eta]" << " nor                     = (" << nor[0] << ", " << nor[1] << ")\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 2] [Eta]" << " state1                  = [" << state1[0] << ", " << state1[1] << ", " << state1[2] << ", " << state1[3] << "]\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 2] [Eta]" << " state2                  = [" << state2[0] << ", " << state2[1] << ", " << state2[2] << ", " << state2[3] << "]\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 2] [Eta]" << " fluxnum                 = [" << flux_num[0] << ", " << flux_num[1] << ", " << flux_num[2] << ", " << flux_num[3] << "]\n";
+                }  
+              
 #ifdef AXISYMMETRIC
                 flux_num *= r_hat;
 #endif
 
+                  if (debug_integrator)
+                {
+                    std::cout << "[ComputeFVFluxes] [dim == 2] [Eta]" << " rfluxnum                = [" << flux_num[0] << ", " << flux_num[1] << ", " << flux_num[2] << ", " << flux_num[3] << "]\n";
+                }
+
                 Tr.SetIntPoint(&ir_vol->IntPoint(id1));
                 dU_subcell -= flux_num;
 
+                if (debug_integrator)
+                {
+                    std::cout << "[ComputeFVFluxes] [dim == 2] [Eta]" << " dU_subcell -= rflux_num = [" << dU_subcell[0] << ", " << dU_subcell[1] << ", " << dU_subcell[2] << ", " << dU_subcell[3] << "]\n";
+                }
+
                 dU_subcell /= Tr.Weight() * (ir->IntPoint(j).weight);
+
+                if (debug_integrator)
+                {
+                    std::cout << "[ComputeFVFluxes] [dim == 2] [Eta]" << " J                       = " << Tr.Weight() << ", w = " << ir->IntPoint(j).weight << "\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 2] [Eta]" << " dU_subcell =/w.J        = [" << dU_subcell[0] << ", " << dU_subcell[1] << ", " << dU_subcell[2] << ", " << dU_subcell[3] << "]\n";
+                }
 
                     AddRow(el_dudt_mat, dU_subcell, id1);
 
@@ -971,9 +1138,23 @@ void DGSEMIntegrator::ComputeFVFluxes(const DenseMatrix &el_u_mat, real_t alpha_
                     state1 = state2;
                     id1 = id2;   
                     
+                if (debug_integrator)
+                {
+                    std::cout << "[ComputeFVFluxes] [dim == 2] [Eta]" << " dU_subcell = rflux_num  = [" << dU_subcell[0] << ", " << dU_subcell[1] << ", " << dU_subcell[2] << ", " << dU_subcell[3] << "]\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 2] [Eta]" << " state1 = state2         = [" << state1[0] << ", " << state1[1] << ", " << state1[2] << ", " << state1[3] << "]\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 2] [Eta]" << " id1 = id2               = " << id1 << "\n";
+                }
+                    
                 }
                 Tr.SetIntPoint(&ir_vol->IntPoint(id1));
                 dU_subcell /= Tr.Weight() * (ir->IntPoint(Np_y - 1).weight);
+
+                if (debug_integrator)
+                {
+                    std::cout << "[ComputeFVFluxes] [dim == 2] [Eta]" << " J = " << Tr.Weight() << ", w = " << ir->IntPoint(Np_y - 1).weight << "\n";
+                    std::cout << "[ComputeFVFluxes] [dim == 2] [Eta]" << " dU_subcell =/w.J        = [" << dU_subcell[0] << ", " << dU_subcell[1] << ", " << dU_subcell[2] << ", " << dU_subcell[3] << "]\n";
+                    std::cout << "________________________________________________________________________________________________________________" << "\n";
+                }
 
                 AddRow(el_dudt_mat, dU_subcell, id1);
             }

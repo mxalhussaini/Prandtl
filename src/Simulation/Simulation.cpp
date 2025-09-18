@@ -77,6 +77,8 @@ Simulation::~Simulation()
     }
 }
 
+bool debug_simulation = false;
+
 void Simulation::LoadConfig(const std::string &config_file_path)
 {
     /*
@@ -408,6 +410,54 @@ void Simulation::LoadConfig(const std::string &config_file_path)
             }
         }
 
+    if (debug_simulation)
+    {
+        real_t *sol_state = sol->GetData();
+        std::vector<std::pair<real_t, real_t>> zr(num_dofs_scalar, {0.0, 0.0});
+
+        std::cout << "\n === sol state rU values after weighting by r ===\n";
+
+        for (int e = 0; e < pmesh->GetNE(); e++)
+        {
+            const FiniteElement &fe = *fes->GetFE(e);
+            ElementTransformation &Tr = *fes->GetElementTransformation(e);
+
+            Array<int> ldofs;
+            fes->GetElementDofs(e, ldofs);
+
+            const IntegrationRule &fe_nodes = fe.GetNodes();
+            if (fe_nodes.GetNPoints() == fe.GetDof())
+            {
+                for (int ldof = 0; ldof < fe.GetDof(); ldof++)
+                {
+                    const IntegrationPoint &ip = fe_nodes.IntPoint(ldof);
+                    Vector X(dim);
+                    Tr.Transform(ip, X);
+                    const int gdof = ldofs[ldof];
+                    zr[gdof] = {static_cast<real_t>(X(0)), static_cast<real_t>(X(1))};
+                }
+            }
+        }
+
+        for (int i = 0; i < num_dofs_scalar; ++i)
+        {
+            real_t rho = sol_state[0*num_dofs_scalar+i];
+            real_t rhoU = sol_state[1*num_dofs_scalar+i];
+            real_t rhoV = sol_state[2*num_dofs_scalar+i];
+            real_t E = sol_state[3*num_dofs_scalar+i];
+            real_t z = zr[i].first;
+            real_t r = zr[i].second;
+
+            std::cout << " DOF#" << std::setw(2) << i 
+                    << " (z, r) = ("<< std::fixed << std::setprecision(2) << std::setw(4) << z //std::round(z*100)/100.0
+                    << ", " << std::setw(4) << std::round(r*100)/100.0 << "),  state = ["
+                    << std::setw(4) << std::round(rho*100)/100.0 << ", "
+                    << std::setw(4) << std::round(rhoU*100)/100.0 << ", "
+                    << std::setw(4) << std::round(rhoV*100)/100.0 << ", "
+                    << std::setw(5) << std::round(E*100)/100.0 << "]\n";
+        }
+       
+    }
 #endif
 
     next_checkpoint_t = t + checkpoint_dt;
@@ -891,6 +941,20 @@ void Simulation::Run()
     {
 #ifdef AXISYMMETRIC
 
+        if (debug_simulation)
+        {
+            for (int i = 0; i < num_dofs_scalar; i++)
+            {
+                std::cout << " DOF#" << std::setw(2) << i 
+                        << "    primitive state =["
+                        << std::setw(4) << std::round((*rho_axi)(i)*100)/100.0 << ", "
+                        << std::setw(4) << std::round((*u)(i)*100)/100.0 << ", "
+                        << std::setw(4) << std::round((*v)(i)*100)/100.0 << ", "
+                        << std::setw(5) << std::round((*p)(i)*100)/100.0 << "]\n";
+            }
+       
+        }
+
         
 #else
         for (int i = 0; i < num_dofs_scalar; i++)
@@ -928,6 +992,15 @@ void Simulation::Run()
     
     for (ti; !done;)
     {
+        
+        if (debug_simulation)
+        {
+            std::cout << "################################################################################" << "\n";
+            std::cout << "######################### [TIME STEP = " << ti << ", TIME = " << t << "] #########################" << "\n";
+            std::cout << "################################################################################" << "\n";
+        }
+    
+
         // Compute the time step size
         dt_real = std::min(dt, t_final - t);
 

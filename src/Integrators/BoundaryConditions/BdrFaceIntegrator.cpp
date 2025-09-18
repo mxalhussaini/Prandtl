@@ -5,6 +5,7 @@
 namespace Prandtl
 {
 
+bool debug_boundary = false;
 BdrFaceIntegrator::BdrFaceIntegrator(std::shared_ptr<LiftingScheme> liftingScheme_, const NumericalFlux &rsolver, int Np, const real_t &time, real_t gamma_, bool constant, bool t_dependent)
    : NonlinearFormIntegrator(), liftingScheme(liftingScheme_),
      rsolver(rsolver), fluxFunction(rsolver.GetFluxFunction()),
@@ -59,6 +60,11 @@ BdrFaceIntegrator::BdrFaceIntegrator(std::shared_ptr<LiftingScheme> liftingSchem
 
 void BdrFaceIntegrator::AssembleFaceVector(const FiniteElement &el1, const FiniteElement &el2, FaceElementTransformations &Tr, const Vector &el_u, Vector &el_dudt)
 {
+   if (debug_boundary) // && (time >= 2.99999 || time == 0))
+   {
+      std::cout << "===== Entering BdrFaceIntegrator::AssembleFaceVector =====" << std::endl;
+   }
+
    el_dudt.SetSize(dof1 * num_equations);
    el_dudt = 0.0;
 
@@ -89,9 +95,26 @@ void BdrFaceIntegrator::AssembleFaceVector(const FiniteElement &el1, const Finit
       }
 
       max_char_speed = std::max(max_char_speed, ComputeBdrFaceInviscidFlux(state1, state2, dU_face1, nor, Tr, ip));
+
+        if (debug_boundary)
+        {
+            std::cout << "[BdrFace]" << " Elem      =  " << Tr.ElementNo << "\n";
+            std::cout << "[BdrFace]" << " (x,r)     = (" << phys[0] << ", " << std::round(r) << ")" << "\n";
+            std::cout << "[BdrFace]" << " faceIP#   =  " << i <<", ip.x = " << ip.x << ", weight = " << ip.weight << ", J1 = " << J1 << "\n";
+            std::cout << "[BdrFace]" << " state1    = [" << state1[0] << ", " << state1[1] << ", " << state1[2] << ", " << state1[3] << "]\n";
+            std::cout << "[BdrFace]" << " state2    = [" << state2[0] << ", " << state2[1] << ", " << state2[2] << ", " << state2[3] << "]\n";
+            std::cout << "[BdrFace]" << " dU_face1  = [" << dU_face1[0] << ", " << dU_face1[1] << ", " << dU_face1[2] << ", " << dU_face1[3] << "]\n";
+        }
+
 #ifdef AXISYMMETRIC
       dU_face1 *= r;
 #endif
+
+    if (debug_boundary)
+        {
+            std::cout << "[BdrFace]" << " rdU_face1 = [" << dU_face1[0] << ", " << dU_face1[1] << ", " << dU_face1[2] << ", " << dU_face1[3] << "]\n";
+            std::cout << "________________________________________________________________________________________________________________" << "\n";
+        }
       dU_face1.Neg();
 
       // pre-multiply integration weight to flux
