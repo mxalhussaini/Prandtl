@@ -1,12 +1,21 @@
 #! /bin/sh
 
+# exit if a command fails
+set -e
 
-cd out/build
+BUILD_DIR="out/build"
 
-if [ -z "$1" ]; then
-    mpiexec -n 4 Prandtl
+# first argument is the number of processes, default is 4
+N_PROCS=${1:-4}
+# second argument is the config file path
+CONFIG_FILE=$2
+
+cd "$BUILD_DIR"
+
+if [ -z "$CONFIG_FILE" ]; then
+    mpiexec -n ${N_PROCS} Prandtl
     #ibrun Prandtl
 else
-    mpiexec -n 4 Prandtl "$1"
-    #ibrun Prandtl "$1"
+    mpiexec -n ${N_PROCS} Prandtl "${CONFIG_FILE}"
+    #ibrun Prandtl "${CONFIG_FILE}"
 fi

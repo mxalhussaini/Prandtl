@@ -1,3 +1,6 @@
 #! /bin/sh
 
-cd out/build ; cmake --build .
+# exit if a command fails
+set -e
+
+cd out/build ; cmake --build . -- "$@"
