@@ -21,6 +21,9 @@ private:
     int precision;
     int num_dofs_scalar;
     int num_dofs_system;
+    int print_interval;
+    int ti;
+    int checkpoint_cycle;
 
     bool done = false;
     bool variable_dt = false;
@@ -29,15 +32,26 @@ private:
     bool visualize = true;
     bool visit = false;
     bool paraview = true;
+    bool checkpoint_load = false;
+    bool checkpoint_save = false;
 
     std::shared_ptr<PhysicsConstants> physicsConstants;
 
     std::string output_file_path;
+    std::string ParaView_folder;
+    std::string checkpoints_folder;
 
-    real_t t = 0, t_final, dt, dt_real;
-    real_t cfl = 1.0;
+    real_t t, t_final, dt, dt_real;
+    real_t cfl;
     real_t hmin;
     real_t Re, Ma;
+    real_t next_save_t;
+    real_t save_dt1;
+    real_t save_dt2;
+    real_t trigger_t;
+    real_t save_dt;
+    real_t next_checkpoint_t;
+    real_t checkpoint_dt;
 
     real_t V_sq;
 

@@ -24,6 +24,8 @@
 #include "IsentropicVortex.hpp"
 
 #include "json.hpp"
+#include <filesystem>
+#include <mpi.h>
 
 namespace Prandtl
 {
@@ -93,14 +95,30 @@ void Simulation::LoadConfig(const std::string &config_file_path)
 
     precision = runtime.value("precision", 15);
     std::cout.precision(precision);
+
+    cfl = runtime.value("cfl", 1.0);
+    print_interval = runtime.value("print_interval", 10);
+    output_file_path = runtime["output_file_path"].get<std::string>();
+    ParaView_folder = runtime.value("ParaView_folder", "ParaView");
+    checkpoint_dt = runtime.value("checkpoint_dt", 0.01);
+    checkpoints_folder = output_file_path + "/" + runtime.value("checkpoints_folder", "Checkpoints");
+    checkpoint_load = runtime.value("checkpoint_load", false);
+    checkpoint_save = runtime.value("checkpoint_save", false);
+    if (checkpoint_save) 
+    {
+        std::filesystem::create_directories(checkpoints_folder);
+    }
     
     visualize = runtime["visualize"].get<bool>();
     if (visualize)
     {
+        save_dt1 = runtime.value("initial_save_dt", 0.01);
+        save_dt2 = runtime.value("refined_save_dt", save_dt1);
+        trigger_t = runtime.value("refined_trigger", 2.0);
+        save_dt = save_dt1;
         vis_steps = runtime.value("vis_steps", 100);
         paraview = runtime["paraview"].get<bool>();
         visit = runtime["visit"].get<bool>();
-        output_file_path = runtime["output_file_path"].get<std::string>();
         if (!paraview && !visit)
         {
             std::cerr << "Error: Both ParaView and VisIt visualization options are disabled. Please choose at least one." << std::endl;
@@ -116,7 +134,8 @@ void Simulation::LoadConfig(const std::string &config_file_path)
 
     clock_simulation = runtime["clock_simulation"].get<bool>();
     variable_dt = runtime["variable_dt"].get<bool>();
-    if (runtime.contains("dt"))
+
+    if (runtime.contains("dt") && !variable_dt)
     {
         dt = runtime.value("dt", 1e-4);
     }
@@ -314,8 +333,62 @@ void Simulation::LoadConfig(const std::string &config_file_path)
     dfes = std::make_unique<ParFiniteElementSpace>(pmesh.get(), fec.get(), dim, ordering);
     fes = std::make_unique<ParFiniteElementSpace>(pmesh.get(), fec.get());
 
-    sol = std::make_shared<ParGridFunction>(vfes.get());
-    sol->ProjectCoefficient(*u0);
+    num_dofs_scalar = fes->GetNDofs();
+    num_dofs_system = vfes->GetVSize();
+    
+    // sol = std::make_shared<ParGridFunction>(vfes.get());
+
+    if (checkpoint_load)
+    {
+        real_t root_t = 0.0;
+        int root_ti = 0;
+ 
+        if (Mpi::Root())
+        {
+            checkpoint_cycle = runtime.value("checkpoint_cycle", 0);
+            MFEM_VERIFY(checkpoint_cycle > 0, "Invalid or missing cycle number in JSON");
+                std::string meta_file = checkpoints_folder + "/Cycle" + std::to_string(checkpoint_cycle) + "/checkpoint_cycle_" + std::to_string(checkpoint_cycle) + ".json";
+                
+                std::ifstream meta(meta_file);
+                MFEM_VERIFY(meta, "Failed to open meta file " << meta_file);
+                    nlohmann::json J;
+                    meta >> J;
+                    root_t = J.value("time", 0.0);
+                    root_ti = J.value("cycle", 0);
+                    MFEM_VERIFY(root_ti == checkpoint_cycle, "Mismatch between provided cycle number and value in meta file");
+        }
+
+        MPI_Bcast(&root_t, 1, MPI_DOUBLE, 0, pmesh->GetComm());
+        MPI_Bcast(&root_ti, 1, MPI_INT, 0, pmesh->GetComm());
+        MPI_Barrier(pmesh->GetComm());
+
+        t = root_t;
+        ti = root_ti;
+
+        std::ostringstream fname;
+        fname << checkpoints_folder << "/Cycle" << ti << "/checkpoint_cycle_" << ti << "." << std::setw(8) << std::setfill('0') << myRank << ".chk";
+        std::cout << fname.str() << "\n";
+        std::ifstream checkpoint_load(fname.str(), std::ios::binary);
+        MFEM_VERIFY(checkpoint_load, "Failed to open checkpoint file for reading: " << fname.str());
+
+        sol.reset();
+        sol = std::make_shared<ParGridFunction>(pmesh.get(), checkpoint_load);
+
+        MPI_Barrier(pmesh->GetComm());
+
+    }
+    else 
+    {
+        sol = std::make_shared<ParGridFunction>(vfes.get());
+        sol->ProjectCoefficient(*u0);
+
+        t = 0.0;
+        ti = 0;
+    }
+
+
+    next_checkpoint_t = t + checkpoint_dt;
+    if (visualize) { next_save_t = t + save_dt; }
 
     eta = std::make_shared<ParGridFunction>(fes0.get());
     alpha = std::make_shared<ParGridFunction>(fes0.get());
@@ -623,9 +696,6 @@ void Simulation::LoadConfig(const std::string &config_file_path)
         }
     }
 
-    num_dofs_scalar = fes->GetNDofs();
-    num_dofs_system = vfes->GetVSize();
-
     if (Mpi::Root())
     {
         std::cout << "The Number of Degrees of Freedom per Conservative Variable per Rank: " << num_dofs_scalar << std::endl;
@@ -654,7 +724,7 @@ void Simulation::LoadConfig(const std::string &config_file_path)
     {
         if (paraview)
         {
-            pd = std::make_unique<ParaViewDataCollection>("ParaView", pmesh.get());
+            pd = std::make_unique<ParaViewDataCollection>(ParaView_folder, pmesh.get());
             pd->SetPrefixPath(output_file_path);
             pd->RegisterField("Density", &rho);
             pd->RegisterField("Horizontal V", u.get());
@@ -746,23 +816,24 @@ void Simulation::Run()
             }
             (*p)(i) = physicsConstants->gammaM1 * (energy(i) - 0.5 * rho(i) * V_sq);
         }
+#endif
 
         if (paraview)
         {
-            pd->SetCycle(0);
-            pd->SetTime(0.0);
+            pd->SetCycle(ti);
+            pd->SetTime(t);
             pd->Save();
         }
         else if (visit)
         {
-            vd->SetCycle(0);
-            vd->SetTime(0.0);
+            vd->SetCycle(ti);
+            vd->SetTime(t);
             vd->Save();
         }
     }
 
-    // Start the time-stepping loop
-    for (int ti = 0; !done;)
+    
+    for (ti; !done;)
     {
         // Compute the time step size
         dt_real = std::min(dt, t_final - t);
@@ -789,17 +860,18 @@ void Simulation::Run()
             {
                 if (std::isnan(val) || std::isinf(val))
                 {
-                    std::cerr << "NaN/Inf Detected at Time Step " << ti << " on Rank " << myRank << "!" << std::endl;
+                    MFEM_ABORT("NaN/Inf Detected at Time Step " + std::to_string(ti) + " on Rank " + std::to_string(myRank));
                     break;
                 }
             }
         }
-
         // Visualize the solution?
-        if (visualize && (done || ti % vis_steps == 0))
+        // if (visualize && (done || ti % vis_steps == 0))
+        if (visualize && (done || t >= next_save_t))
         {
-            for (int i = 0; i < num_dofs_scalar; i++)
-            {
+        
+        for (int i = 0; i < num_dofs_scalar; i++)
+        {       
                 (*u)(i) = mom(i) / rho(i);
                 V_sq = (*u)(i) * (*u)(i);
                 if (dim > 1)
@@ -813,8 +885,9 @@ void Simulation::Run()
                     }
                 }
                 (*p)(i) = physicsConstants->gammaM1 * (energy(i) - 0.5 * rho(i) * V_sq);
-            }
-    
+        }
+#endif
+
             if (paraview)
             {
                 pd->SetCycle(ti);
@@ -828,9 +901,52 @@ void Simulation::Run()
                 vd->Save();
             }
 
+
+            save_dt = (t < trigger_t) ? save_dt1 : save_dt2;
+            next_save_t += save_dt;
+
+        }
+
+
+        if (checkpoint_save && (done || t >= next_checkpoint_t))
+        {
+            // writing the solution to a checkpoint file in a subfolder
+
+            std::string cycle_dir = checkpoints_folder + "/Cycle" + std::to_string(ti);
+            std::error_code ec;
+            std::filesystem::create_directories(cycle_dir, ec);
+            MFEM_VERIFY(!ec, "Failed to create a directory " << cycle_dir << " : " << ec.message());
+
+            std::ostringstream checkpoint_file;
+            checkpoint_file << cycle_dir << "/checkpoint_cycle_" << ti << "." << std::setw(8) << std::setfill('0') << myRank << ".chk";
+            std::ofstream checkpoint_save(checkpoint_file.str(), std::ios::binary);
+            MFEM_VERIFY(checkpoint_save, "Failed to open checkpoint file for writing: " << checkpoint_file.str());
+
+            sol->Save(checkpoint_save);
+            checkpoint_save.close();
+
+            if (Mpi::Root())
+                {
+                // writing time and cycle data to a json file
+                std::string meta_file = cycle_dir + "/checkpoint_cycle_" + std::to_string(ti)+".json";
+                std::ofstream meta(meta_file);
+                MFEM_VERIFY(meta, "Failed to open meta file for writing: " << meta_file);
+
+                meta << std::fixed << "{" << "\n" << " \"time\": " << t << "," << "\n"
+                                    << " \"cycle\": " << ti << "\n"
+                                    << "}" << "\n";
+                meta.close();             
+                }
+            MPI_Barrier(pmesh->GetComm());   
+            
+            next_checkpoint_t += checkpoint_dt;
+        }
+
+        if (ti % print_interval == 0)
+        {
             if (Mpi::Root())
             {
-                std::cout << "time step: " << ti << ", time: " << t << "\n";
+                std::cout << "time step: " << ti << ", time: " << t << ", dt: " << dt << "\n";
             }
         }
     }
