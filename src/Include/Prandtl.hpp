@@ -35,3 +35,4 @@
 #include "PerssonPeraireIndicator.hpp"
 #include "NumericalFlux.hpp"
 #include "NavierStokesFlux.hpp"
+#include "SymmetryBdrFaceIntegrator.hpp"

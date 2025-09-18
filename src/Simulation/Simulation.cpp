@@ -443,9 +443,11 @@ void Simulation::LoadConfig(const std::string &config_file_path)
             auto bc_props = boundary.value();  // This is a JSON object.
             std::string type = bc_props["type"].get<std::string>();
 
-            if (type == "slip")
+            if (type == "symmetry" || type == "axis")
             {
-                NS->AddBdrFaceIntegrator(new SlipWallBdrFaceIntegrator(liftingScheme, *numericalFlux, order + 1, NS->GetTimeRef(), physicsConstants->gamma), bdr_marker_vector.back());
+                auto symmetry = std::make_unique<SymmetryBdrFaceIntegrator>(liftingScheme, *numericalFlux, order + 1, NS->GetTimeRef(), physicsConstants->gamma, true, false);
+
+                NS->AddBdrFaceIntegrator(symmetry.release(), bdr_marker_vector.back());
             }
             else if (type == "no-slip-adiabatic")
             {   
