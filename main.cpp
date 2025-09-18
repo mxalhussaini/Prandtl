@@ -31,7 +31,9 @@ int main(int argc, char* argv[])
         // sim.LoadConfig("../../TestCases/Euler/2D/ForwardFacingStep/config.json");
         // sim.LoadConfig("../../TestCases/Euler/2D/BackwardFacingStep/config.json");
         // sim.LoadConfig("../../TestCases/Euler/2D/TriplePointShockInteraction/config.json");
-        // sim.LoadConfig("../../TestCases/Euler/2D/KelvinHelmholtzInstability/config.json");;
+        // sim.LoadConfig("../../TestCases/Euler/2D/KelvinHelmholtzInstability/config.json");
+        // sim.LoadConfig("../../TestCases/Euler/2D/Ramp/config.json");
+        // sim.LoadConfig("../../TestCases/Euler/2D/Nagashima_Ramjet/TR0/config.json");
 
         // 2D Navier-Stokes test cases
         // sim.LoadConfig("../../TestCases/NavierStokes/2D/LidDrivenCavity/config.json"); 
