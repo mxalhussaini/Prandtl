@@ -23,7 +23,7 @@
 #include "KelvinHelmholtzInstability.hpp"
 #include "IsentropicVortex.hpp"
 #include "Ramp.hpp"
-//#include "Nagashima_Ramjet.hpp"
+#include "Nagashima_Ramjet.hpp"
 
 #include "json.hpp"
 #include <filesystem>
