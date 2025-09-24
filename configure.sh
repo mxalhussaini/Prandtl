@@ -4,7 +4,7 @@
 set -e
 
 # Accept an optional command line argument for the config file path.
-# If none is provided, default to "TestCases/Euler/1D/SodShockTube/config.json"
+# If none is provided, default to DEFAULT_CONFIG
 DEFAULT_CONFIG="TestCases/Euler/1D/SodShockTube/config.json"
 
 BUILD_DIR="out/build"
@@ -15,5 +15,4 @@ CONFIG_FILE=${1:-$DEFAULT_CONFIG}
 rm -rf "$BUILD_DIR"
 
 # (Re-)run CMake configuration
-cmake -S . -B "$BUILD_DIR" -DCONFIG_FILE="${CONFIG_FILE}" -DCMAKE_BUILD_TYPE="Release"
-# cmake -S . -B "$BUILD_DIR" -DCMAKE_C_COMPILER=icx -DCMAKE_CXX_COMPILER=icpx -DCONFIG_FILE="${CONFIG_FILE}"
+cmake -S . -B "$BUILD_DIR" -DCONFIG_FILE="${CONFIG_FILE}" -DCMAKE_BUILD_TYPE="Release" -DCMAKE_CXX_FLAGS_RELEASE="-O2 -DNDEBUG"
