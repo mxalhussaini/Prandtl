@@ -3,6 +3,17 @@
 # exit if a command fails
 set -e
 
+IS_HPC=false
+# --- Environment Detection ---
+if command -v module &> /dev/null; then
+    IS_HPC=true
+fi
+
+# --- Load HPC Environment ---
+if [ "$IS_HPC" = true ]; then
+    source ./env_hpc.sh
+fi
+
 # Accept an optional command line argument for the config file path.
 # If none is provided, default to DEFAULT_CONFIG
 DEFAULT_CONFIG="TestCases/Euler/1D/SodShockTube/config.json"

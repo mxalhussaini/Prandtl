@@ -848,7 +848,7 @@ void Simulation::LoadConfig(const std::string &config_file_path)
             }
             pd->RegisterField("Pressure", p.get());
             pd->RegisterField("Blending Coeff", alpha.get());
-            // pd->SetLevelsOfDetail(order);
+            pd->SetLevelsOfDetail(order);
             pd->SetDataFormat(VTKFormat::BINARY);
             pd->SetHighOrderOutput(true);
         }
@@ -992,7 +992,7 @@ void Simulation::Run()
     }
 
     
-    for (ti; !done;)
+    while (!done)
     {
         
         if (debug_simulation)
